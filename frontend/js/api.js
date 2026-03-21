@@ -26,7 +26,7 @@ const AVAILABLE_LANGUAGES = [
 
 const API = {
     // 内部请求方法
-    async request(endpoint, options = {}) {
+    async request(endpoint, options = {}, silent = false) {
         const url = `${API_BASE}${endpoint}`;
         const token = Storage.getToken();
 
@@ -49,35 +49,37 @@ const API = {
 
             return data;
         } catch (error) {
-            console.error('API Error:', error);
+            if (!silent) {
+                console.error('API Error:', error);
+            }
             throw error;
         }
     },
 
     // GET 请求
-    async get(endpoint) {
-        return this.request(endpoint, { method: 'GET' });
+    async get(endpoint, silent = false) {
+        return this.request(endpoint, { method: 'GET' }, silent);
     },
 
     // POST 请求
-    async post(endpoint, body = {}) {
+    async post(endpoint, body = {}, silent = false) {
         return this.request(endpoint, {
             method: 'POST',
             body: JSON.stringify(body)
-        });
+        }, silent);
     },
 
     // PUT 请求
-    async put(endpoint, body = {}) {
+    async put(endpoint, body = {}, silent = false) {
         return this.request(endpoint, {
             method: 'PUT',
             body: JSON.stringify(body)
-        });
+        }, silent);
     },
 
     // DELETE 请求
-    async delete(endpoint) {
-        return this.request(endpoint, { method: 'DELETE' });
+    async delete(endpoint, silent = false) {
+        return this.request(endpoint, { method: 'DELETE' }, silent);
     },
 
     // === 认证相关 API ===
@@ -104,8 +106,8 @@ const API = {
     },
 
     // === 用户配置 API ===
-    async getProfile() {
-        return this.get('/api/users/profile');
+    async getProfile(silent = false) {
+        return this.get('/api/users/profile', silent);
     },
 
     async createProfile(profileData) {

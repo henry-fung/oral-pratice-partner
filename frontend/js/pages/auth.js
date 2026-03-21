@@ -144,7 +144,7 @@ const AuthPage = {
 
             // 检查是否有配置，决定跳转页面
             try {
-                const profile = await API.getProfile();
+                const profile = await API.getProfile(true);
                 Router.navigate('/scenarios');
             } catch (e) {
                 // 没有配置，跳转到配置页面
