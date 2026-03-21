@@ -103,6 +103,8 @@ const PracticePage = {
     },
 
     async generateNewSentence() {
+        this.showLoading('正在生成句子...');
+
         try {
             this.currentSentence = await API.generateSentence(this.scenario.id);
             this.showAnswer = false;
@@ -119,6 +121,8 @@ const PracticePage = {
                     <button class="btn-primary" onclick="PracticePage.generateNewSentence()">重试</button>
                 </div>
             `;
+        } finally {
+            this.hideLoading();
         }
     },
 
@@ -341,6 +345,28 @@ const PracticePage = {
         toast.querySelector('div').textContent = message;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 2000);
+    },
+
+    showLoading(message) {
+        const app = document.getElementById('app');
+        const existingModal = app.querySelector('.loading-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.className = 'loading-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg p-6 text-center">
+                <div class="loading loading-lg mx-auto mb-4"></div>
+                <p class="text-gray-600">${message}</p>
+            </div>
+        `;
+        app.appendChild(modal);
+    },
+
+    hideLoading() {
+        const app = document.getElementById('app');
+        const modal = app.querySelector('.loading-modal');
+        if (modal) modal.remove();
     }
 };
 

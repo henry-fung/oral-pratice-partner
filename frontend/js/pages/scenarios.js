@@ -61,12 +61,18 @@ const ScenariosPage = {
 
             // 如果没有场景，生成新的
             if (!scenarios || scenarios.length === 0) {
-                scenarios = await API.generateScenarios(5);
+                this.showLoading('正在生成场景...');
+                try {
+                    scenarios = await API.generateScenarios(5);
+                } finally {
+                    this.hideLoading();
+                }
             }
 
             this.scenarios = scenarios;
             this.renderScenariosList();
         } catch (error) {
+            this.hideLoading();
             document.getElementById('scenariosContent').innerHTML = `
                 <div class="text-center py-8">
                     <div class="text-4xl mb-4">😕</div>
@@ -149,13 +155,7 @@ const ScenariosPage = {
             return;
         }
 
-        const container = document.getElementById('scenariosContent');
-        container.innerHTML = `
-            <div class="text-center py-8">
-                <div class="loading"></div>
-                <p class="text-gray-500 mt-4">正在生成新场景...</p>
-            </div>
-        `;
+        this.showLoading('正在生成新场景...');
 
         try {
             const scenarios = await API.generateScenarios(5);
@@ -166,6 +166,8 @@ const ScenariosPage = {
         } catch (error) {
             this.showToast(error.message);
             await this.loadScenarios();
+        } finally {
+            this.hideLoading();
         }
     },
 
@@ -182,6 +184,28 @@ const ScenariosPage = {
         toast.querySelector('div').textContent = message;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 2000);
+    },
+
+    showLoading(message) {
+        const app = document.getElementById('app');
+        const existingModal = app.querySelector('.loading-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.className = 'loading-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg p-6 text-center">
+                <div class="loading loading-lg mx-auto mb-4"></div>
+                <p class="text-gray-600">${message}</p>
+            </div>
+        `;
+        app.appendChild(modal);
+    },
+
+    hideLoading() {
+        const app = document.getElementById('app');
+        const modal = app.querySelector('.loading-modal');
+        if (modal) modal.remove();
     }
 };
 
