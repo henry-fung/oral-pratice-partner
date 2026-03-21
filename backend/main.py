@@ -25,29 +25,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册 API 路由
+# 注册 API 路由（必须在静态文件之前）
 app.include_router(api_router)
 
-# 挂载静态文件目录（前端）
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
-if os.path.exists(frontend_dir):
-    # 挂载整个 frontend 目录到根路径，这样 index.html 可以正确引用 js/ 目录
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
-
+# 健康检查（必须在静态文件之前定义）
+@app.get("/api/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "healthy", "version": "1.0.0"}
 
 @app.get("/")
 async def read_index():
     """返回前端首页"""
+    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
     index_path = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "欢迎使用口语练习助手 API！访问 /docs 查看 API 文档"}
 
-
-@app.get("/api/health")
-async def health_check():
-    """健康检查"""
-    return {"status": "healthy", "version": "1.0.0"}
+# 挂载静态文件目录（前端）- 必须在 API 路由之后
+# 使用 /static 前缀，避免与 API 路由冲突
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="static")
 
 
 if __name__ == "__main__":
