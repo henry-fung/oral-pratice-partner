@@ -34,20 +34,18 @@ async def health_check():
     """健康检查"""
     return {"status": "healthy", "version": "1.0.0"}
 
+# 静态文件服务（必须在 API 路由之后，避免拦截 API 请求）
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
+
 @app.get("/")
 async def read_index():
     """返回前端首页"""
-    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
     index_path = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "欢迎使用口语练习助手 API！访问 /docs 查看 API 文档"}
-
-# 挂载静态文件目录（前端）- 必须在 API 路由之后
-# 使用 /static 前缀，避免与 API 路由冲突
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
-if os.path.exists(frontend_dir):
-    app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="static")
 
 
 if __name__ == "__main__":
