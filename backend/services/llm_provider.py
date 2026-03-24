@@ -3,9 +3,10 @@ import traceback
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from openai import OpenAI, AzureOpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from openai import RateLimitError
 
 try:
     from google import genai
@@ -284,7 +285,7 @@ class CustomProvider(LLMProvider):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
-    # @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception_type(RateLimitError))
     def generate(self, messages: List[Dict[str, str]], json_mode: bool = False, response_format: Optional[type] = None) -> str:
         # 基础参数
         base_kwargs = {
