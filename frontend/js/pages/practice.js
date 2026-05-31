@@ -83,8 +83,9 @@ const PracticePage = {
             const sentences = await API.listScenarioSentences(state.scenarioId);
 
             if (sentences && sentences.length > 0) {
-                // 使用最后一个句子
-                this.currentSentence = sentences[sentences.length - 1];
+                // 使用第一个未完成的句子，没有则用最后一句
+                const incomplete = sentences.find(s => !s.is_completed);
+                this.currentSentence = incomplete || sentences[sentences.length - 1];
                 this.showAnswer = false;
                 this.renderSentence();
             } else {

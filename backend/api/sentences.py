@@ -61,7 +61,9 @@ def _completed_ids(db: Session, user_id: int, shared_scenario_id: int) -> set:
     return {r[0] for r in rows}
 
 
-def _prefetch_next_sentence(shared_scenario_id: int, profile, db: Session):
+def _prefetch_next_sentence(shared_scenario_id: int, profile_data: dict):
+    from backend.database import SessionLocal
+    db = SessionLocal()
     try:
         ss = db.query(SharedScenario).filter(SharedScenario.id == shared_scenario_id).first()
         if not ss:
@@ -72,10 +74,10 @@ def _prefetch_next_sentence(shared_scenario_id: int, profile, db: Session):
         llm_service = LLMService()
         sentence_data = llm_service.generate_sentence(
             scenario={"title": ss.title, "description": ss.description, "context": ss.context},
-            role=profile.role,
-            language=profile.target_language,
-            native_language=profile.native_language,
-            proficiency_level=profile.proficiency_level,
+            role=profile_data["role"],
+            language=profile_data["target_language"],
+            native_language=profile_data["native_language"],
+            proficiency_level=profile_data["proficiency_level"],
         )
         db.add(SharedSentence(
             shared_scenario_id=shared_scenario_id,
@@ -87,6 +89,8 @@ def _prefetch_next_sentence(shared_scenario_id: int, profile, db: Session):
         db.commit()
     except Exception:
         pass
+    finally:
+        db.close()
 
 
 @router.post("/generate", response_model=SentenceResponse)
@@ -144,7 +148,13 @@ async def generate_sentence(
     # 预生成下一句
     total_now = db.query(SharedSentence).filter(SharedSentence.shared_scenario_id == shared_scenario_id).count()
     if total_now < MAX_SENTENCES_PER_SCENARIO:
-        background_tasks.add_task(_prefetch_next_sentence, shared_scenario_id, profile, db)
+        profile_data = {
+            "role": profile.role,
+            "target_language": profile.target_language,
+            "native_language": profile.native_language,
+            "proficiency_level": profile.proficiency_level,
+        }
+        background_tasks.add_task(_prefetch_next_sentence, shared_scenario_id, profile_data)
 
     return _sentence_to_response(sentence, progress)
 
