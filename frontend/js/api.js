@@ -83,8 +83,8 @@ const API = {
     },
 
     // === 认证相关 API ===
-    async register(username, password, email = null) {
-        const data = await this.post('/api/auth/register', { username, password, email });
+    async register(username, password, email = null, inviteCode = '') {
+        const data = await this.post('/api/auth/register', { username, password, email, invite_code: inviteCode });
         if (data.access_token) {
             Storage.setToken(data.access_token);
             Storage.setUser(data);

@@ -68,6 +68,16 @@ const AuthPage = {
                             />
                         </div>
 
+                        <div id="inviteCodeField" class="mb-4 ${this.isLoginMode ? 'hidden' : ''}">
+                            <label class="block text-gray-700 text-sm font-medium mb-2">邀请码</label>
+                            <input
+                                type="text"
+                                id="inviteCode"
+                                class="input-field"
+                                placeholder="请输入邀请码"
+                            />
+                        </div>
+
                         <button type="submit" id="submitBtn" class="btn-primary mt-6">
                             ${this.isLoginMode ? '登 录' : '注 册'}
                         </button>
@@ -117,6 +127,7 @@ const AuthPage = {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         const email = document.getElementById('email')?.value.trim() || null;
+        const inviteCode = document.getElementById('inviteCode')?.value.trim() || '';
 
         if (!username || !password) {
             this.showToast('请填写用户名和密码');
@@ -125,6 +136,11 @@ const AuthPage = {
 
         if (password.length < 6) {
             this.showToast('密码长度至少为 6 位');
+            return;
+        }
+
+        if (!this.isLoginMode && !inviteCode) {
+            this.showToast('请填写邀请码');
             return;
         }
 
@@ -138,7 +154,7 @@ const AuthPage = {
                 await API.login(username, password);
                 this.showToast('登录成功');
             } else {
-                await API.register(username, password, email);
+                await API.register(username, password, email, inviteCode);
                 this.showToast('注册成功');
             }
 

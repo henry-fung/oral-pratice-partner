@@ -14,22 +14,20 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 @router.post("/register", response_model=UserWithToken)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """用户注册"""
+    invite_code = os.getenv("INVITE_CODE")
+    if invite_code and user_data.invite_code != invite_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邀请码无效")
+
     # 检查用户名是否已存在
     existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户名已存在"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
 
     # 检查邮箱是否已存在
     if user_data.email:
         existing_email = db.query(User).filter(User.email == user_data.email).first()
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邮箱已被注册"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已被注册")
 
     # 创建新用户
     hashed_password = get_password_hash(user_data.password)
