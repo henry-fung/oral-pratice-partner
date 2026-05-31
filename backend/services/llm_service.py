@@ -165,7 +165,7 @@ class LLMService:
 
         response = self.provider.generate(
             messages=[{"role": "user", "content": prompt}],
-            json_mode=True
+            response_format=SentenceData
         )
 
         return self._parse_json_response(response)

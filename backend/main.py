@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from backend.database import Base, engine
+import backend.models  # noqa: F401 — ensures all models are registered before create_all
 from backend.api import api_router
 
 # 创建数据库表

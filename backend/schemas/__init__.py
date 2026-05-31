@@ -141,6 +141,37 @@ class VocabularyResponse(BaseModel):
         from_attributes = True
 
 
+# === 共享场景/句子 Schemas ===
+class SharedScenarioResponse(BaseModel):
+    id: int
+    user_id: int        # populated from UserScenario.user_id at API layer
+    session_id: str     # populated from UserScenario.session_id
+    title: str
+    description: Optional[str] = None
+    context: Optional[str] = None
+    role: str
+    language: str
+    is_selected: bool   # populated from UserScenario.is_selected
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedSentenceResponse(BaseModel):
+    id: int
+    scenario_id: int    # populated as shared_scenario_id at API layer
+    native_text: str
+    target_text: str
+    pronunciation_guide: Optional[str] = None
+    difficulty_level: str
+    sentence_order: int
+    is_completed: bool  # populated from UserSentenceProgress
+
+    class Config:
+        from_attributes = True
+
+
 # === 通用响应 ===
 class MessageResponse(BaseModel):
     message: str
