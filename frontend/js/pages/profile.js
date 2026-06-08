@@ -20,6 +20,11 @@ const ProfilePage = {
             if (existingProfile.role === 'custom' && existingProfile.custom_role_name) {
                 this.customRoleName = existingProfile.custom_role_name;
             }
+            // 兼容旧 role id
+            const ROLE_MIGRATIONS = { business_data: 'ai_engineer' };
+            if (ROLE_MIGRATIONS[this.selectedRole]) {
+                this.selectedRole = ROLE_MIGRATIONS[this.selectedRole];
+            }
         } catch (e) {
             // 没有配置，使用默认值
         }
