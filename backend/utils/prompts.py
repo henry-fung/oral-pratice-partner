@@ -7,7 +7,7 @@ AVAILABLE_ROLES = [
     {"id": "student", "name": "留学生", "icon": "🎓"},
     {"id": "business_trade", "name": "外贸", "icon": "🌐"},
     {"id": "business_dev", "name": "程序员", "icon": "💻"},
-    {"id": "business_data", "name": "数据科学家", "icon": "📊"},
+    {"id": "business_data", "name": "AI算法工程师", "icon": "🤖"},
     {"id": "traveler", "name": "旅游者", "icon": "✈️"},
     {"id": "daily", "name": "日常生活", "icon": "🏠"},
     {"id": "custom", "name": "自定义", "icon": "✏️"},
@@ -30,7 +30,7 @@ ROLE_DESCRIPTIONS = {
     "student": "一名在国外留学的学生，需要应对课堂讨论、与同学交流、日常生活购物等场景",
     "business_trade": "一名从事外贸工作的商务人士，需要与客户沟通、产品报价、订单处理、跨境会议等场景",
     "business_dev": "一名程序员，需要参与技术会议、代码评审、项目汇报、团队协作、技术面试等场景",
-    "business_data": "一名数据科学家，需要进行数据分析汇报、模型讲解、团队分享、学术会议等场景",
+    "business_data": "一名AI算法工程师，专注于模型训练、微调、prompt工程、上下文工程、RAG系统和agent设计，需要应对solution讨论会、技术讲解、需求讨论、测试问题triage、团队协作、论文分享等场景",
     "traveler": "一名旅游者，需要问路、点餐、酒店入住、购物、景点游览等场景",
     "daily": "日常生活中的各种场景，如与邻居交流、去医院、银行办事、社交聚会等",
     "custom": "根据个人自定义的职业或身份，生成相应的实用口语场景",
@@ -40,12 +40,14 @@ SCENARIO_GENERATION_PROMPT = """你是一位专业的{language}口语教师，�
 
 角色描述：{role_description}
 
-请生成{count}个最实用的口语场景，这些场景应该是：
-1. {role}最可能遇到的真实情况
-2. 每个场景有明确的交流目的
-3. 适合进行 2-5 轮对话练习
-4. 难度适合{proficiency_level}水平的学习者
-5. 生成的场景的title，description和context以中文的形式输出
+请生成{count}个口语场景，要求：
+1. 每个场景必须属于不同的类别（如：正式会议、非正式闲聊、突发状况、谈判协商、技术讨论、情感表达、投诉反馈等），确保多样性
+2. 场景要具体、有细节、有趣，避免泛泛而谈
+3. 可以包含非典型、意外或有挑战性的情境，不局限于日常套路
+4. 每个场景有明确的交流目的，适合进行 2-5 轮对话练习
+5. 难度适合{proficiency_level}水平的学习者
+6. 生成的场景的title，description和context以中文的形式输出
+7. 随机种子：{random_seed}（用于确保每次生成不同的场景组合）
 
 **重要：必须返回恰好{count}个场景，以 JSON 数组格式返回。**
 

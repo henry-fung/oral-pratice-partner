@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -13,6 +14,8 @@ from backend.api.deps import get_current_user
 from backend.services.llm_service import LLMService
 
 router = APIRouter(prefix="/api/scenarios", tags=["场景"])
+
+DEDUP_DAYS = 7  # 用户 N 天内见过的场景不重复出现
 
 
 def _user_scenario_to_response(us: UserScenario) -> dict:
@@ -37,20 +40,35 @@ async def generate_scenarios(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """生成 N 个口语场景（优先复用共享池）"""
+    """生成 N 个口语场景（共享池复用 + 用户去重）"""
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先设置个人配置（角色和 target_language）")
 
-    # 从共享池查找已有场景
+    # 清除旧关联
+    db.query(UserScenario).filter(UserScenario.user_id == current_user.id).delete()
+    db.commit()
+
+    # 查找用户最近 DEDUP_DAYS 天看过的场景 ID
+    cutoff = datetime.utcnow() - timedelta(days=DEDUP_DAYS)
+    recent_ids = {
+        row.shared_scenario_id
+        for row in db.query(UserScenario.shared_scenario_id).filter(
+            UserScenario.user_id == current_user.id,
+            UserScenario.created_at >= cutoff,
+        ).all()
+    }
+
+    # 从共享池取该用户未见过的场景
     shared = db.query(SharedScenario).filter(
         SharedScenario.role == profile.role,
         SharedScenario.language == profile.target_language,
         SharedScenario.proficiency_level == profile.proficiency_level,
+        ~SharedScenario.id.in_(recent_ids) if recent_ids else True,
     ).limit(generate_data.count).all()
 
+    # 不够则调 LLM 补充
     if len(shared) < generate_data.count:
-        # 共享池不足，调用 LLM 补充
         llm_service = LLMService()
         scenarios_data = await asyncio.to_thread(
             llm_service.generate_scenarios,
@@ -68,6 +86,7 @@ async def generate_scenarios(
             title = sd.get("title", "未命名场景")
             if title in existing_titles:
                 continue
+            from sqlalchemy.exc import IntegrityError
             ss = SharedScenario(
                 role=profile.role,
                 language=profile.target_language,
@@ -76,9 +95,21 @@ async def generate_scenarios(
                 description=sd.get("description", ""),
                 context=sd.get("context", ""),
             )
-            db.add(ss)
-            shared.append(ss)
-            existing_titles.add(title)
+            try:
+                db.add(ss)
+                db.flush()
+                shared.append(ss)
+                existing_titles.add(title)
+            except IntegrityError:
+                db.rollback()
+                # 标题重复，从共享池捞已有的
+                existing = db.query(SharedScenario).filter_by(
+                    role=profile.role, language=profile.target_language,
+                    proficiency_level=profile.proficiency_level, title=title,
+                ).first()
+                if existing and existing.id not in {s.id for s in shared}:
+                    shared.append(existing)
+                    existing_titles.add(title)
             if len(shared) >= generate_data.count:
                 break
         db.commit()
@@ -89,18 +120,13 @@ async def generate_scenarios(
     session_id = str(uuid.uuid4())
     user_scenarios = []
     for ss in shared[:generate_data.count]:
-        us = db.query(UserScenario).filter(
-            UserScenario.user_id == current_user.id,
-            UserScenario.shared_scenario_id == ss.id,
-        ).first()
-        if not us:
-            us = UserScenario(
-                user_id=current_user.id,
-                shared_scenario_id=ss.id,
-                session_id=session_id,
-                is_selected=False,
-            )
-            db.add(us)
+        us = UserScenario(
+            user_id=current_user.id,
+            shared_scenario_id=ss.id,
+            session_id=session_id,
+            is_selected=False,
+        )
+        db.add(us)
         user_scenarios.append(us)
     db.commit()
     for us in user_scenarios:

@@ -1,5 +1,7 @@
 import json
 import re
+import random
+import string
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from backend.services.llm_provider import LLMFactory, LLMProvider
@@ -114,12 +116,14 @@ class LLMService:
             role_description = ROLE_DESCRIPTIONS.get(role, role)
             role_display = role
 
+        random_seed = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         prompt = SCENARIO_GENERATION_PROMPT.format(
             role=role_display,
             role_description=role_description,
             language=language,
             count=count,
-            proficiency_level=proficiency_level
+            proficiency_level=proficiency_level,
+            random_seed=random_seed
         )
 
         # 使用 Pydantic 模型强制 JSON 格式

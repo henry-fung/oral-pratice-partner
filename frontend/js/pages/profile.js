@@ -17,6 +17,9 @@ const ProfilePage = {
             this.selectedRole = existingProfile.role;
             this.selectedLanguage = existingProfile.target_language;
             this.selectedLevel = existingProfile.proficiency_level;
+            if (existingProfile.role === 'custom' && existingProfile.custom_role_name) {
+                this.customRoleName = existingProfile.custom_role_name;
+            }
         } catch (e) {
             // 没有配置，使用默认值
         }
