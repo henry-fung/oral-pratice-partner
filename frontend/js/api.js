@@ -9,7 +9,7 @@ const AVAILABLE_ROLES = [
     { id: 'student', name: '留学生', icon: '🎓' },
     { id: 'business_trade', name: '外贸', icon: '🌐' },
     { id: 'business_dev', name: '程序员', icon: '💻' },
-    { id: 'business_data', name: 'AI算法工程师', icon: '🤖' },
+    { id: 'ai_engineer', name: 'AI算法工程师', icon: '🤖' },
     { id: 'traveler', name: '旅游者', icon: '✈️' },
     { id: 'daily', name: '日常生活', icon: '🏠' },
     { id: 'custom', name: '自定义', icon: '✏️' },

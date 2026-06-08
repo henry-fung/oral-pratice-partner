@@ -134,17 +134,93 @@ const ProfilePage = {
 
     selectRole(roleId) {
         if (roleId === 'custom') {
-            const customName = prompt('请输入你的角色名称（例如：医生、律师、教师等）：');
-            if (customName && customName.trim()) {
-                this.customRoleName = customName.trim();
-                this.selectedRole = roleId;
-                this.render();
-            }
+            this._showCustomRoleModal();
         } else {
             this.selectedRole = roleId;
             this.customRoleName = '';
             this.render();
         }
+    },
+
+    _showCustomRoleModal() {
+        const existing = document.getElementById('customRoleModal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'customRoleModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-t-2xl w-full max-w-lg p-6 pb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">输入你的角色</h3>
+                <input
+                    id="customRoleInput"
+                    type="text"
+                    placeholder="例如：医生、律师、教师..."
+                    class="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-800 focus:outline-none focus:border-primary-500 mb-3"
+                    oninput="ProfilePage._updateRoleSuggestions(this.value)"
+                    value="${this.escapeHtml(this.customRoleName)}"
+                />
+                <div id="roleSuggestions" class="mb-4"></div>
+                <div class="flex gap-3">
+                    <button class="flex-1 btn-secondary" onclick="ProfilePage._closeCustomRoleModal()">取消</button>
+                    <button class="flex-1 btn-primary" onclick="ProfilePage._confirmCustomRole()">确认</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('customRoleInput').focus();
+        if (this.customRoleName) this._updateRoleSuggestions(this.customRoleName);
+    },
+
+    async _updateRoleSuggestions(input) {
+        const container = document.getElementById('roleSuggestions');
+        if (!container) return;
+        const trimmed = input.trim();
+        if (!trimmed) { container.innerHTML = ''; return; }
+
+        try {
+            const suggestions = await API.request(`/api/roles/suggestions?q=${encodeURIComponent(trimmed)}`);
+            if (!suggestions.length) { container.innerHTML = ''; return; }
+            container.innerHTML = `
+                <p class="text-xs text-gray-500 mb-2">推荐：</p>
+                <div class="flex flex-wrap gap-2">
+                    ${suggestions.map(r => `
+                        <button
+                            class="px-3 py-1.5 rounded-full border border-primary-400 text-primary-600 text-sm"
+                            onclick="ProfilePage._selectSuggestedRole('${r.id}', '${ProfilePage.escapeHtml(r.name)}', ${r.is_preset})"
+                        >${r.icon} ${r.name}</button>
+                    `).join('')}
+                </div>
+            `;
+        } catch (e) {
+            container.innerHTML = '';
+        }
+    },
+
+    _selectSuggestedRole(roleId, roleName, isPreset) {
+        this._closeCustomRoleModal();
+        if (isPreset) {
+            this.selectedRole = roleId;
+            this.customRoleName = '';
+        } else {
+            this.selectedRole = 'custom';
+            this.customRoleName = roleName;
+        }
+        this.render();
+    },
+
+    _confirmCustomRole() {
+        const input = document.getElementById('customRoleInput');
+        const name = input?.value.trim();
+        if (!name) return;
+        this._closeCustomRoleModal();
+        this.customRoleName = name;
+        this.selectedRole = 'custom';
+        this.render();
+    },
+
+    _closeCustomRoleModal() {
+        document.getElementById('customRoleModal')?.remove();
     },
 
     selectLanguage(langId) {
