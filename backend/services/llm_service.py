@@ -110,7 +110,7 @@ class LLMService:
         """生成 N 个与角色相关的口语场景"""
         # 如果是自定义角色，使用自定义名称
         if role == "custom" and custom_role_name:
-            role_description = custom_role_name
+            role_description = f"{custom_role_name}（请根据该职业/身份自行推断典型的工作或生活场景）"
             role_display = custom_role_name
         else:
             role_description = ROLE_DESCRIPTIONS.get(role, role)

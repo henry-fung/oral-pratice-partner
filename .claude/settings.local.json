@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(curl http://localhost:8000/api/health)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(git config *)"
     ]
   }
 }
