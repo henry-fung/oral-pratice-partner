@@ -11,7 +11,7 @@ const Router = {
 
     // 导航到指定路由
     async navigate(path) {
-        // 更新 URL（使用 hash 模式）
+        this.currentRoute = path;
         window.location.hash = path;
 
         // 执行路由处理
@@ -30,10 +30,13 @@ const Router = {
 
     // 初始化路由
     init() {
-        // 监听 hash 变化
+        // 监听 hash 变化（仅处理浏览器前进/后退，navigate() 已直接调用处理器）
         window.addEventListener('hashchange', () => {
             const path = this.getPath();
+            // 如果是 navigate() 触发的，currentRoute 已匹配，跳过避免双重渲染
+            if (path === this.currentRoute) return;
             if (this.routes[path]) {
+                this.currentRoute = path;
                 this.routes[path]();
             }
         });
