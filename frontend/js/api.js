@@ -43,6 +43,11 @@ const API = {
             const response = await fetch(url, config);
             const data = await response.json();
 
+            if (response.status === 401) {
+                Storage.clearToken();
+                Router.navigate('/auth');
+                throw new Error('登录已过期，请重新登录');
+            }
             if (!response.ok) {
                 throw new Error(data.detail || `HTTP ${response.status}`);
             }
@@ -133,6 +138,10 @@ const API = {
 
     async selectScenario(scenarioId) {
         return this.post(`/api/scenarios/${scenarioId}/select`);
+    },
+
+    async markScenarioPracticed(scenarioId) {
+        return this.post(`/api/scenarios/${scenarioId}/practiced`, {}, true);
     },
 
     async deleteScenario(scenarioId) {

@@ -30,6 +30,7 @@ def _user_scenario_to_response(us: UserScenario) -> dict:
         "role": ss.role,
         "language": ss.language,
         "is_selected": us.is_selected,
+        "is_practiced": us.is_practiced,
         "created_at": us.created_at,
     }
 
@@ -185,6 +186,24 @@ async def select_scenario(
     us.is_selected = True
     db.commit()
     return MessageResponse(message="场景选择成功")
+
+
+@router.post("/{scenario_id}/practiced", response_model=MessageResponse)
+async def mark_scenario_practiced(
+    scenario_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """标记场景已练习"""
+    us = db.query(UserScenario).filter(
+        UserScenario.id == scenario_id,
+        UserScenario.user_id == current_user.id,
+    ).first()
+    if not us:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    us.is_practiced = True
+    db.commit()
+    return MessageResponse(message="已标记为已练习")
 
 
 @router.delete("/{scenario_id}", response_model=MessageResponse)

@@ -82,6 +82,7 @@ class ScenarioResponse(BaseModel):
     role: str
     language: str
     is_selected: bool
+    is_practiced: bool = False
     created_at: datetime
 
     class Config:
@@ -134,6 +135,7 @@ class VocabularyResponse(BaseModel):
     definition: Optional[str] = None
     example_sentence: Optional[str] = None
     pronunciation: Optional[str] = None
+    audio_url: Optional[str] = None
     is_mastered: bool
     review_count: int
     created_at: datetime

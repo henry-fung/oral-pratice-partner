@@ -35,6 +35,7 @@ async def lookup_word(
         # 更新现有记录
         existing.definition = word_data.get("definition", existing.definition)
         existing.pronunciation = word_data.get("pronunciation", existing.pronunciation)
+        existing.audio_url = word_data.get("audio_url", existing.audio_url)
         if word_data.get("example_sentence"):
             existing.example_sentence = word_data["example_sentence"]
         db.commit()
@@ -48,6 +49,7 @@ async def lookup_word(
         language=lookup_data.language,
         definition=word_data.get("definition"),
         pronunciation=word_data.get("pronunciation"),
+        audio_url=word_data.get("audio_url"),
         example_sentence=word_data.get("example_sentence")
     )
     db.add(new_vocab)

@@ -115,10 +115,13 @@ const ScenariosPage = {
                             <h3 class="font-medium text-gray-800">${this.escapeHtml(scenario.title)}</h3>
                             <p class="text-sm text-gray-500 mt-1">${this.escapeHtml(scenario.description || '')}</p>
                         </div>
-                        ${this.selectedScenarioId === scenario.id ?
-                            '<span class="text-primary-500 text-sm">已选择</span>' :
-                            '<span class="text-gray-300">›</span>'
-                        }
+                        <div class="flex items-center gap-2">
+                            ${scenario.is_practiced ? '<span class="text-green-500 text-xs">✓ 已练习</span>' : ''}
+                            ${this.selectedScenarioId === scenario.id ?
+                                '<span class="text-primary-500 text-sm">已选择</span>' :
+                                '<span class="text-gray-300">›</span>'
+                            }
+                        </div>
                     </div>
                 </div>
             `).join('')}

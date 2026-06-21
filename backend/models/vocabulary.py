@@ -14,6 +14,7 @@ class Vocabulary(Base):
     definition = Column(Text)  # 中文释义
     example_sentence = Column(Text)  # 例句
     pronunciation = Column(Text)  # 发音
+    audio_url = Column(Text)  # 读音音频 URL
     added_from_sentence_id = Column(Integer, ForeignKey("sentences.id", ondelete="SET NULL"))
     is_mastered = Column(Boolean, default=False)  # 是否已掌握
     review_count = Column(Integer, default=0)  # 复习次数

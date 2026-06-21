@@ -12,6 +12,7 @@ class UserScenario(Base):
     shared_scenario_id = Column(Integer, ForeignKey("shared_scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id = Column(String(50), nullable=False, index=True)
     is_selected = Column(Boolean, default=False)
+    is_practiced = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

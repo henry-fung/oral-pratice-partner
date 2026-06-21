@@ -23,7 +23,7 @@ const PracticePage = {
                 <div class="flex items-center mb-4">
                     <button
                         class="text-gray-400 mr-3"
-                        onclick="Router.navigate('/scenarios')"
+                        onclick="PracticePage.goBack()"
                     >
                         ←
                     </button>
@@ -270,9 +270,18 @@ const PracticePage = {
         await this.generateNewSentence();
     },
 
+    async goBack() {
+        if (this.scenario) {
+            await API.markScenarioPracticed(this.scenario.id).catch(() => {});
+        }
+        Router.navigate('/scenarios');
+    },
+
     async nextScenario() {
-        // 返回场景列表，让用户选择新场景
         Storage.clearPracticeState();
+        if (this.scenario) {
+            await API.markScenarioPracticed(this.scenario.id).catch(() => {});
+        }
         Router.navigate('/scenarios');
     },
 
@@ -302,7 +311,9 @@ const PracticePage = {
                 </div>
                 <p class="text-gray-600 mb-2">${this.escapeHtml(wordData.definition || '')}</p>
                 ${wordData.pronunciation ? `
-                    <p class="text-sm text-gray-500 mb-2">发音：${this.escapeHtml(wordData.pronunciation)}</p>
+                    <p class="text-sm text-gray-500 mb-2">音标：${this.escapeHtml(wordData.pronunciation)}
+                        ${wordData.audio_url ? `<button onclick="new Audio('${this.escapeJs(wordData.audio_url)}').play()" class="ml-2 text-primary-500">🔊</button>` : ''}
+                    </p>
                 ` : ''}
                 ${wordData.example_sentence ? `
                     <p class="text-sm text-gray-600 italic">"${this.escapeHtml(wordData.example_sentence)}"</p>

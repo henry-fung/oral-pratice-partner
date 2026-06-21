@@ -10,6 +10,20 @@ from backend.api import api_router
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
 
+# 迁移：为已有数据库添加 is_practiced 列
+from sqlalchemy import text
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text("ALTER TABLE user_scenarios ADD COLUMN is_practiced BOOLEAN NOT NULL DEFAULT 0"))
+        _conn.commit()
+    except Exception:
+        pass
+    try:
+        _conn.execute(text("ALTER TABLE vocabulary ADD COLUMN audio_url TEXT"))
+        _conn.commit()
+    except Exception:
+        pass
+
 app = FastAPI(
     title="口语练习助手 API",
     description="一个基于 LLM 的口语练习助手应用",

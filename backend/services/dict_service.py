@@ -77,11 +77,13 @@ class DictService:
 
             # 提取发音
             pronunciation = ""
+            audio_url = ""
             if "phonetics" in entry and entry["phonetics"]:
                 for phonetic in entry["phonetics"]:
-                    if phonetic.get("text"):
+                    if phonetic.get("text") and not pronunciation:
                         pronunciation = phonetic["text"]
-                        break
+                    if phonetic.get("audio") and not audio_url:
+                        audio_url = phonetic["audio"]
 
             # 提取释义
             definition = ""
@@ -102,6 +104,7 @@ class DictService:
                 "word": word,
                 "definition": definition,
                 "pronunciation": pronunciation,
+                "audio_url": audio_url,
                 "example_sentence": example_sentence
             }
 
@@ -111,6 +114,7 @@ class DictService:
                 "word": word,
                 "definition": f"查询失败：{str(e)}",
                 "pronunciation": "",
+                "audio_url": "",
                 "example_sentence": ""
             }
         except Exception as e:
@@ -118,6 +122,7 @@ class DictService:
                 "word": word,
                 "definition": f"查询出错：{str(e)}",
                 "pronunciation": "",
+                "audio_url": "",
                 "example_sentence": ""
             }
 
@@ -227,14 +232,16 @@ class DictService:
             entry = data[0]
 
             pronunciation = ""
+            audio_url = ""
             definition = ""
             example_sentence = ""
 
             if "phonetics" in entry and entry["phonetics"]:
                 for phonetic in entry["phonetics"]:
-                    if phonetic.get("text"):
+                    if phonetic.get("text") and not pronunciation:
                         pronunciation = phonetic["text"]
-                        break
+                    if phonetic.get("audio") and not audio_url:
+                        audio_url = phonetic["audio"]
 
             if "meanings" in entry and entry["meanings"]:
                 meaning = entry["meanings"][0]
@@ -251,6 +258,7 @@ class DictService:
                 "word": word,
                 "definition": definition,
                 "pronunciation": pronunciation,
+                "audio_url": audio_url,
                 "example_sentence": example_sentence
             }
 
@@ -259,6 +267,7 @@ class DictService:
                 "word": word,
                 "definition": f"查询失败：{str(e)}",
                 "pronunciation": "",
+                "audio_url": "",
                 "example_sentence": ""
             }
 
