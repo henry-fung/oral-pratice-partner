@@ -107,9 +107,15 @@ class SentenceResponse(BaseModel):
     difficulty_level: str
     sentence_order: int
     is_completed: bool
+    context_text: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class ContinueRequest(BaseModel):
+    scenario_id: int
+    sentence_id: int
 
 
 # === 单词本相关 Schemas ===

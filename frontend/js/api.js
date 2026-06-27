@@ -165,6 +165,10 @@ const API = {
         return this.get(`/api/sentences/scenario/${scenarioId}/list`);
     },
 
+    async continuePractice(scenarioId, sentenceId) {
+        return this.post('/api/sentences/continue', { scenario_id: scenarioId, sentence_id: sentenceId });
+    },
+
     // === 单词本相关 API ===
     async lookupWord(word, language) {
         return this.post('/api/vocabulary/lookup', { word, language });

@@ -30,6 +30,7 @@ class SentenceData(BaseModel):
     native: str = Field(..., description="中文翻译")
     target: str = Field(..., description="目标语言原句")
     pronunciation: Optional[str] = Field(None, description="IPA 或拼音发音指导")
+    context: Optional[str] = Field(None, description="对方说的话（仅 continuation 使用）")
 
 
 class WordLookupData(BaseModel):
@@ -172,6 +173,30 @@ class LLMService:
             response_format=SentenceData
         )
 
+        return self._parse_json_response(response)
+
+    def generate_continuation(
+        self,
+        scenario: Dict,
+        previous_target: str,
+        role: str,
+        language: str,
+        proficiency_level: str = "intermediate"
+    ) -> Dict:
+        from backend.utils.prompts import CONTINUATION_PROMPT
+        prompt = CONTINUATION_PROMPT.format(
+            role=role,
+            scenario_title=scenario.get("title", ""),
+            scenario_description=scenario.get("description", ""),
+            scenario_context=scenario.get("context", ""),
+            previous_target=previous_target,
+            language=language,
+            proficiency_level=proficiency_level,
+        )
+        response = self.provider.generate(
+            messages=[{"role": "user", "content": prompt}],
+            response_format=SentenceData
+        )
         return self._parse_json_response(response)
 
     def lookup_word(self, word: str, language: str) -> Dict:

@@ -141,6 +141,14 @@ const PracticePage = {
         }
 
         container.innerHTML = `
+            ${this.currentSentence.context_text ? `
+            <!-- 对方的回应 -->
+            <div class="card mb-4 text-center" style="background:#eff6ff;border:1px solid #bfdbfe;">
+                <p class="text-gray-500 text-sm">对方说</p>
+                <p class="text-base text-gray-700 mt-2">${this.escapeHtml(this.currentSentence.context_text)}</p>
+            </div>
+            ` : ''}
+
             <!-- 中文提示 -->
             <div class="card mb-4 text-center">
                 <p class="text-gray-500 text-sm">场景提示</p>
@@ -191,20 +199,26 @@ const PracticePage = {
                 </div>
 
                 <!-- 操作按钮 -->
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-3 mb-3">
                     <button
                         class="btn-secondary"
                         onclick="PracticePage.nextSentence()"
                     >
-                        下一句
+                        换一句
                     </button>
                     <button
                         class="btn-secondary"
-                        onclick="PracticePage.nextScenario()"
+                        onclick="PracticePage.continueConversation()"
                     >
-                        下一场景
+                        继续对话
                     </button>
                 </div>
+                <button
+                    class="btn-secondary w-full mb-3"
+                    onclick="PracticePage.nextScenario()"
+                >
+                    下一场景
+                </button>
 
                 <!-- 标记完成按钮 -->
                 <button
@@ -265,9 +279,23 @@ const PracticePage = {
     },
 
     async nextSentence() {
-        // 生成下一句
         this.userInput = '';
         await this.generateNewSentence();
+    },
+
+    async continueConversation() {
+        this.showLoading('正在生成对话...');
+        try {
+            this.userInput = '';
+            this.showAnswer = false;
+            this.currentSentence = await API.continuePractice(this.scenario.id, this.currentSentence.id);
+            Storage.setPracticeState({ scenarioId: this.scenario.id, sentenceId: this.currentSentence.id, showAnswer: false });
+            this.renderSentence();
+        } catch (error) {
+            this.showToast('生成失败，请重试');
+        } finally {
+            this.hideLoading();
+        }
     },
 
     async goBack() {

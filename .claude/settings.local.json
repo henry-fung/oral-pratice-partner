@@ -5,7 +5,8 @@
       "Bash(python -c \":*)",
       "Bash(git fetch:*)",
       "Bash(git push:*)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(python -c ' *)"
     ]
   }
 }

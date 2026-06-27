@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from typing import List, Optional
 from backend.database import get_db
 from backend.models.user import User
@@ -10,7 +10,7 @@ from backend.models.user_scenario import UserScenario
 from backend.models.shared_scenario import SharedScenario
 from backend.models.shared_sentence import SharedSentence
 from backend.models.user_sentence_progress import UserSentenceProgress
-from backend.schemas import SentenceGenerate, SentenceResponse, SentenceComplete, MessageResponse
+from backend.schemas import SentenceGenerate, SentenceResponse, SentenceComplete, MessageResponse, ContinueRequest
 from backend.api.deps import get_current_user
 from backend.services.llm_service import LLMService
 
@@ -29,6 +29,7 @@ def _sentence_to_response(ss: SharedSentence, progress: Optional[UserSentencePro
         "difficulty_level": ss.difficulty_level,
         "sentence_order": ss.sentence_order,
         "is_completed": progress.is_completed if progress else False,
+        "context_text": ss.context_text,
     }
 
 
@@ -68,7 +69,10 @@ def _prefetch_next_sentence(shared_scenario_id: int, profile_data: dict):
         ss = db.query(SharedScenario).filter(SharedScenario.id == shared_scenario_id).first()
         if not ss:
             return
-        count = db.query(SharedSentence).filter(SharedSentence.shared_scenario_id == shared_scenario_id).count()
+        count = db.query(SharedSentence).filter(
+            SharedSentence.shared_scenario_id == shared_scenario_id,
+            SharedSentence.parent_sentence_id == None,
+        ).count()
         if count >= MAX_SENTENCES_PER_SCENARIO:
             return
         llm_service = LLMService()
@@ -110,15 +114,33 @@ async def generate_sentence(
 
     done_ids = _completed_ids(db, current_user.id, shared_scenario_id)
 
-    # 找一个用户未完成的共享句子
-    sentence = db.query(SharedSentence).filter(
-        SharedSentence.shared_scenario_id == shared_scenario_id,
-        ~SharedSentence.id.in_(done_ids) if done_ids else True,
-    ).order_by(SharedSentence.sentence_order).first()
+    # 只取根句，按 continuation 子链数量倒序优先
+    child_counts = (
+        db.query(
+            SharedSentence.parent_sentence_id.label("pid"),
+            func.count().label("cnt")
+        )
+        .filter(SharedSentence.shared_scenario_id == shared_scenario_id)
+        .filter(SharedSentence.parent_sentence_id != None)
+        .group_by(SharedSentence.parent_sentence_id)
+        .subquery()
+    )
+    sentence = (
+        db.query(SharedSentence)
+        .outerjoin(child_counts, SharedSentence.id == child_counts.c.pid)
+        .filter(SharedSentence.shared_scenario_id == shared_scenario_id)
+        .filter(SharedSentence.parent_sentence_id == None)
+        .filter(~SharedSentence.id.in_(done_ids) if done_ids else True)
+        .order_by(func.coalesce(child_counts.c.cnt, 0).desc(), SharedSentence.sentence_order)
+        .first()
+    )
 
     if not sentence:
-        # 共享池里没有可用句子，LLM 生成
-        total = db.query(SharedSentence).filter(SharedSentence.shared_scenario_id == shared_scenario_id).count()
+        # 共享池里没有可用根句，LLM 生成
+        total = db.query(SharedSentence).filter(
+            SharedSentence.shared_scenario_id == shared_scenario_id,
+            SharedSentence.parent_sentence_id == None,
+        ).count()
         if total >= MAX_SENTENCES_PER_SCENARIO:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该场景练习已完成")
 
@@ -145,8 +167,11 @@ async def generate_sentence(
 
     progress = _get_progress(db, current_user.id, sentence.id)
 
-    # 预生成下一句
-    total_now = db.query(SharedSentence).filter(SharedSentence.shared_scenario_id == shared_scenario_id).count()
+    # 预生成下一句（只统计根句）
+    total_now = db.query(SharedSentence).filter(
+        SharedSentence.shared_scenario_id == shared_scenario_id,
+        SharedSentence.parent_sentence_id == None,
+    ).count()
     if total_now < MAX_SENTENCES_PER_SCENARIO:
         profile_data = {
             "role": profile.role,
@@ -157,6 +182,56 @@ async def generate_sentence(
         background_tasks.add_task(_prefetch_next_sentence, shared_scenario_id, profile_data)
 
     return _sentence_to_response(sentence, progress)
+
+
+@router.post("/continue", response_model=SentenceResponse)
+async def continue_conversation(
+    data: ContinueRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """继续对话：复用或生成当前句的 continuation"""
+    us = _get_user_scenario(db, data.scenario_id, current_user.id)
+    sentence = db.query(SharedSentence).filter(SharedSentence.id == data.sentence_id).first()
+    if not sentence:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="句子不存在")
+
+    done_ids = _completed_ids(db, current_user.id, us.shared_scenario_id)
+    continuation = (
+        db.query(SharedSentence)
+        .filter(SharedSentence.parent_sentence_id == data.sentence_id)
+        .filter(~SharedSentence.id.in_(done_ids) if done_ids else True)
+        .first()
+    )
+
+    if not continuation:
+        shared_scenario = db.query(SharedScenario).filter(SharedScenario.id == us.shared_scenario_id).first()
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if not profile:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先设置个人配置")
+        llm_service = LLMService()
+        result = await asyncio.to_thread(
+            llm_service.generate_continuation,
+            scenario={"title": shared_scenario.title, "description": shared_scenario.description, "context": shared_scenario.context},
+            previous_target=sentence.target_text,
+            role=profile.role,
+            language=profile.target_language,
+            proficiency_level=profile.proficiency_level,
+        )
+        continuation = SharedSentence(
+            shared_scenario_id=us.shared_scenario_id,
+            parent_sentence_id=data.sentence_id,
+            context_text=result.get("context", ""),
+            native_text=result.get("native", ""),
+            target_text=result.get("target", ""),
+            sentence_order=0,
+        )
+        db.add(continuation)
+        db.commit()
+        db.refresh(continuation)
+
+    progress = _get_progress(db, current_user.id, continuation.id)
+    return _sentence_to_response(continuation, progress)
 
 
 @router.get("/{sentence_id}", response_model=SentenceResponse)

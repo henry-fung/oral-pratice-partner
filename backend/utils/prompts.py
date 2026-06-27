@@ -41,7 +41,7 @@ SCENARIO_GENERATION_PROMPT = """你是一位专业的{language}口语教师，�
 角色描述：{role_description}
 
 请生成{count}个口语场景，要求：
-1. 每个场景必须属于不同的类别（如：正式会议、非正式闲聊、突发状况、谈判协商、技术讨论、情感表达、投诉反馈等），确保多样性
+1. 每个场景必须属于不同的类别（如：正式会议、非正式闲聊、突发状况、谈判协商、技术讨论、情感表达、投诉反馈、面试等），确保多样性
 2. 场景要具体、有细节、有趣，避免泛泛而谈
 3. 可以包含非典型、意外或有挑战性的情境，不局限于日常套路
 4. 每个场景有明确的交流目的，适合进行 2-5 轮对话练习
@@ -87,6 +87,28 @@ SENTENCE_GENERATION_PROMPT = """现在你是{role}，正在经历这个场景：
 }}
 
 只返回 JSON 对象，不要有任何其他文字。确保 JSON 格式正确可以被解析。"""
+
+CONTINUATION_PROMPT = """你正在扮演{role}，正在经历这个场景：
+【场景】{scenario_title}
+【描述】{scenario_description}
+【上下文】{scenario_context}
+
+你刚才说了："{previous_target}"
+
+现在，对方用{language}回应了你。请生成：
+1. 对方的回应（用中文简短描述）
+2. 你（作为{role}）的下一句回应（2-4句话）
+
+要求：符合{proficiency_level}水平，对话自然连贯。
+
+返回严格的 JSON 格式：
+{{
+  "context": "对方说：[中文描述对方的回应，30字以内]",
+  "native": "你的回应（中文翻译）",
+  "target": "你的回应（{language}原句）"
+}}
+
+只返回 JSON 对象，不要有任何其他文字。"""
 
 WORD_LOOKUP_PROMPT = """请查询单词 "{word}" ({language}) 的详细信息。
 
