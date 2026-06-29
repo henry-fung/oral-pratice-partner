@@ -46,11 +46,7 @@ async def generate_scenarios(
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先设置个人配置（角色和 target_language）")
 
-    # 清除旧关联
-    db.query(UserScenario).filter(UserScenario.user_id == current_user.id).delete()
-    db.commit()
-
-    # 查找用户最近 DEDUP_DAYS 天看过的场景 ID
+    # 查找用户最近 DEDUP_DAYS 天看过的场景 ID（必须在 DELETE 之前）
     cutoff = datetime.utcnow() - timedelta(days=DEDUP_DAYS)
     recent_ids = {
         row.shared_scenario_id
@@ -60,13 +56,18 @@ async def generate_scenarios(
         ).all()
     }
 
-    # 从共享池取该用户未见过的场景
+    # 清除旧关联
+    db.query(UserScenario).filter(UserScenario.user_id == current_user.id).delete()
+    db.commit()
+
+    # 从共享池随机取该用户未见过的场景
+    import sqlalchemy
     shared = db.query(SharedScenario).filter(
         SharedScenario.role == profile.role,
         SharedScenario.language == profile.target_language,
         SharedScenario.proficiency_level == profile.proficiency_level,
         ~SharedScenario.id.in_(recent_ids) if recent_ids else True,
-    ).limit(generate_data.count).all()
+    ).order_by(sqlalchemy.func.random()).limit(generate_data.count).all()
 
     # 不够则调 LLM 补充
     if len(shared) < generate_data.count:
