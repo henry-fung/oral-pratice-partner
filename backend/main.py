@@ -33,6 +33,11 @@ with engine.connect() as _conn:
         _conn.commit()
     except Exception:
         pass
+    try:
+        _conn.execute(text("ALTER TABLE shared_sentences ADD COLUMN context_native TEXT"))
+        _conn.commit()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="口语练习助手 API",

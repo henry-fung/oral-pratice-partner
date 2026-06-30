@@ -144,8 +144,15 @@ const PracticePage = {
             ${this.currentSentence.context_text ? `
             <!-- 对方的回应 -->
             <div class="card mb-4 text-center" style="background:#eff6ff;border:1px solid #bfdbfe;">
-                <p class="text-gray-500 text-sm">对方说</p>
-                <p class="text-base text-gray-700 mt-2">${this.escapeHtml(this.currentSentence.context_text)}</p>
+                <p class="text-gray-500 text-sm mb-2">对方说</p>
+                <p class="text-base text-gray-700">${this.escapeHtml(this.currentSentence.context_text)}</p>
+                ${this.currentSentence.context_native ? `
+                <button
+                    class="text-xs text-blue-400 mt-2 underline"
+                    onclick="this.nextElementSibling.classList.toggle('hidden');this.textContent=this.nextElementSibling.classList.contains('hidden')?'显示中文':'隐藏中文'"
+                >显示中文</button>
+                <p class="text-sm text-gray-500 mt-1 hidden">${this.escapeHtml(this.currentSentence.context_native)}</p>
+                ` : ''}
             </div>
             ` : ''}
 

@@ -108,6 +108,7 @@ class SentenceResponse(BaseModel):
     sentence_order: int
     is_completed: bool
     context_text: Optional[str] = None
+    context_native: Optional[str] = None
 
     class Config:
         from_attributes = True

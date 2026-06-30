@@ -30,6 +30,7 @@ def _sentence_to_response(ss: SharedSentence, progress: Optional[UserSentencePro
         "sentence_order": ss.sentence_order,
         "is_completed": progress.is_completed if progress else False,
         "context_text": ss.context_text,
+        "context_native": ss.context_native,
     }
 
 
@@ -222,6 +223,7 @@ async def continue_conversation(
             shared_scenario_id=us.shared_scenario_id,
             parent_sentence_id=data.sentence_id,
             context_text=result.get("context", ""),
+            context_native=result.get("context_native", ""),
             native_text=result.get("native", ""),
             target_text=result.get("target", ""),
             sentence_order=0,

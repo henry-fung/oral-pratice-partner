@@ -96,14 +96,16 @@ CONTINUATION_PROMPT = """你正在扮演{role}，正在经历这个场景：
 你刚才说了："{previous_target}"
 
 现在，对方用{language}回应了你。请生成：
-1. 对方的回应（用中文简短描述）
-2. 你（作为{role}）的下一句回应（2-4句话）
+1. 对方的回应（用{language}原句，1-2句话，自然口语）
+2. 对方回应的中文翻译（简短，30字以内）
+3. 你（作为{role}）的下一句回应（2-4句话）
 
 要求：符合{proficiency_level}水平，对话自然连贯。
 
 返回严格的 JSON 格式：
 {{
-  "context": "对方说：[中文描述对方的回应，30字以内]",
+  "context": "[对方用{language}说的原句]",
+  "context_native": "[对方说的中文翻译，30字以内]",
   "native": "你的回应（中文翻译）",
   "target": "你的回应（{language}原句）"
 }}

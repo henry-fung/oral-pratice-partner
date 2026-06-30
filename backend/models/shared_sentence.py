@@ -11,6 +11,7 @@ class SharedSentence(Base):
     shared_scenario_id = Column(Integer, ForeignKey("shared_scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
     parent_sentence_id = Column(Integer, ForeignKey("shared_sentences.id"), nullable=True)
     context_text = Column(Text, nullable=True)
+    context_native = Column(Text, nullable=True)
     native_text = Column(Text, nullable=False)
     target_text = Column(Text, nullable=False)
     pronunciation_guide = Column(Text)
