@@ -6,6 +6,7 @@ Router.register('/auth', () => {
 });
 
 Router.register('/profile', () => {
+    ProfilePage.reset();
     ProfilePage.render();
 });
 

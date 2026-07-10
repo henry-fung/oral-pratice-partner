@@ -5,29 +5,35 @@ const ProfilePage = {
     customRoleName: '',
     selectedLanguage: 'en',
     selectedLevel: 'intermediate',
+    _initialized: false,
+    _existingProfile: null,
 
     async render() {
         const user = Storage.getUser();
         const app = document.getElementById('app');
 
-        // 尝试获取现有配置
-        let existingProfile = null;
-        try {
-            existingProfile = await API.getProfile();
-            this.selectedRole = existingProfile.role;
-            this.selectedLanguage = existingProfile.target_language;
-            this.selectedLevel = existingProfile.proficiency_level;
-            if (existingProfile.role === 'custom' && existingProfile.custom_role_name) {
-                this.customRoleName = existingProfile.custom_role_name;
+        // 只在首次加载时从服务器获取配置
+        if (!this._initialized) {
+            this._initialized = true;
+            try {
+                const existingProfile = await API.getProfile();
+                this._existingProfile = existingProfile;
+                this.selectedRole = existingProfile.role;
+                this.selectedLanguage = existingProfile.target_language;
+                this.selectedLevel = existingProfile.proficiency_level;
+                if (existingProfile.role === 'custom' && existingProfile.custom_role_name) {
+                    this.customRoleName = existingProfile.custom_role_name;
+                }
+                // 兼容旧 role id
+                const ROLE_MIGRATIONS = { business_data: 'ai_engineer' };
+                if (ROLE_MIGRATIONS[this.selectedRole]) {
+                    this.selectedRole = ROLE_MIGRATIONS[this.selectedRole];
+                }
+            } catch (e) {
+                // 没有配置，使用默认值
             }
-            // 兼容旧 role id
-            const ROLE_MIGRATIONS = { business_data: 'ai_engineer' };
-            if (ROLE_MIGRATIONS[this.selectedRole]) {
-                this.selectedRole = ROLE_MIGRATIONS[this.selectedRole];
-            }
-        } catch (e) {
-            // 没有配置，使用默认值
         }
+        const existingProfile = this._existingProfile;
 
         const roles = API.getAvailableRoles();
         const languages = API.getAvailableLanguages();
@@ -256,32 +262,24 @@ const ProfilePage = {
         btn.disabled = true;
 
         try {
-            // 尝试获取现有配置
-            let existingProfile = null;
-            try {
-                existingProfile = await API.getProfile();
-            } catch (e) {
-                // 没有配置
-            }
-
             const profileData = {
                 role: this.selectedRole,
                 target_language: this.selectedLanguage,
                 proficiency_level: this.selectedLevel
             };
 
-            // 如果是自定义角色，添加自定义名称
             if (this.selectedRole === 'custom') {
                 profileData.custom_role_name = this.customRoleName;
             }
 
-            if (existingProfile) {
+            if (this._existingProfile) {
                 await API.updateProfile(profileData);
                 this.showToast('保存成功');
             } else {
                 await API.createProfile(profileData);
                 this.showToast('配置成功');
             }
+            this._existingProfile = profileData;
 
             // 跳转到场景页面
             setTimeout(() => {
@@ -292,6 +290,15 @@ const ProfilePage = {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
+    },
+
+    reset() {
+        this._initialized = false;
+        this._existingProfile = null;
+        this.selectedRole = null;
+        this.customRoleName = '';
+        this.selectedLanguage = 'en';
+        this.selectedLevel = 'intermediate';
     },
 
     logout() {
