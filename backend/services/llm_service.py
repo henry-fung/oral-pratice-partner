@@ -27,7 +27,7 @@ class ScenarioList(BaseModel):
 
 class SentenceData(BaseModel):
     """句子数据模型"""
-    native: str = Field(..., description="中文翻译")
+    native: str = Field(..., description="句子的中文意思（实际翻译内容）")
     target: str = Field(..., description="目标语言原句")
     pronunciation: Optional[str] = Field(None, description="IPA 或拼音发音指导")
     context: Optional[str] = Field(None, description="对方说的话（仅 continuation 使用）")
