@@ -82,7 +82,7 @@ SENTENCE_GENERATION_PROMPT = """现在你是{role}，正在经历这个场景：
 
 返回严格的 JSON 格式：
 {{
-  "native": "中文翻译",
+  "native": "（这里填写实际的中文意思，例如：你好，很高兴认识你）",
   "target": "{language}原句"
 }}
 

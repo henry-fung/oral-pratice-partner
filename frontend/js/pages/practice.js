@@ -143,9 +143,9 @@ const PracticePage = {
         container.innerHTML = `
             ${this.currentSentence.context_text ? `
             <!-- 对方的回应 -->
-            <div class="card mb-4 text-center" style="background:#eff6ff;border:1px solid #bfdbfe;">
-                <p class="text-gray-500 text-sm mb-2">对方说</p>
-                <p class="text-base text-gray-700">${this.escapeHtml(this.currentSentence.context_text)}</p>
+            <div class="card mb-4 text-center" style="background:#1e293b;border:1px solid #334155;">
+                <p class="text-slate-400 text-sm mb-2">对方说</p>
+                <p class="text-base text-slate-100">${this.escapeHtml(this.currentSentence.context_text)}</p>
                 ${this.currentSentence.context_native ? `
                 <button
                     class="text-xs text-blue-400 mt-2 underline"
