@@ -134,6 +134,8 @@ async def generate_scenarios(
     for us in user_scenarios:
         db.refresh(us)
 
+    # 同一批场景的 created_at 可能相同；用 ID 作为次级排序，确保新建的场景稳定显示在最上方。
+    user_scenarios.sort(key=lambda us: (us.created_at, us.id), reverse=True)
     return [_user_scenario_to_response(us) for us in user_scenarios]
 
 
@@ -145,7 +147,7 @@ async def list_scenarios(
     """获取当前用户的场景列表"""
     user_scenarios = db.query(UserScenario).filter(
         UserScenario.user_id == current_user.id
-    ).order_by(UserScenario.created_at.desc()).limit(20).all()
+    ).order_by(UserScenario.created_at.desc(), UserScenario.id.desc()).limit(20).all()
     return [_user_scenario_to_response(us) for us in user_scenarios]
 
 
