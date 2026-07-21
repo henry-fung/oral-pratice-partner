@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from backend.services.llm_provider import LLMFactory, LLMProvider
 from backend.utils.prompts import (
     SCENARIO_GENERATION_PROMPT,
+    SCENARIO_ENRICH_PROMPT,
     SENTENCE_GENERATION_PROMPT,
     WORD_LOOKUP_PROMPT,
     ROLE_DESCRIPTIONS,
@@ -149,6 +150,40 @@ class LLMService:
 
         # 回退到旧方法
         return self._parse_json_response(response)
+
+    def enrich_scenario(
+        self,
+        scenario_input: str,
+        role: str,
+        language: str,
+        proficiency_level: str = "intermediate",
+        custom_role_name: str = None,
+    ) -> Dict:
+        """Turn a user's free-form scenario request into an editable scenario draft."""
+        if role == "custom" and custom_role_name:
+            role_display = custom_role_name
+            role_description = f"{custom_role_name}（请据此推断典型的工作或生活场景）"
+        else:
+            role_display = role
+            role_description = ROLE_DESCRIPTIONS.get(role, role)
+
+        prompt = SCENARIO_ENRICH_PROMPT.format(
+            role=role_display,
+            role_description=role_description,
+            language=language,
+            proficiency_level=proficiency_level,
+            scenario_input=scenario_input,
+        )
+        response = self.provider.generate(
+            messages=[{"role": "user", "content": prompt}],
+            response_format=ScenarioData,
+        )
+        data = self._parse_json_response(response)
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        if not isinstance(data, dict):
+            raise ValueError("LLM 未返回有效的场景数据")
+        return data
 
     def generate_sentence(
         self,

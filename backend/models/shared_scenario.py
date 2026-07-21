@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Text, UniqueConstraint, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -14,6 +14,11 @@ class SharedScenario(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text)
     context = Column(Text)
+    # Private scenarios remain in the same scenario/sentence pipeline, but are only
+    # associated with and visible to their creator.
+    visibility = Column(String(20), nullable=False, default="shared", index=True)
+    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    is_custom = Column(Boolean, nullable=False, default=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

@@ -11,12 +11,20 @@ const ScenariosPage = {
                 <!-- 头部 -->
                 <div class="flex items-center justify-between mb-4">
                     <h1 class="text-xl font-bold text-gray-800">选择练习场景</h1>
-                    <button
-                        class="text-primary-500 font-medium text-sm"
-                        onclick="ScenariosPage.regenerateScenarios()"
-                    >
-                        🔄 刷新
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <button
+                            class="text-primary-500 font-medium text-sm"
+                            onclick="ScenariosPage.showCustomScenarioModal()"
+                        >
+                            ＋ 新增
+                        </button>
+                        <button
+                            class="text-primary-500 font-medium text-sm"
+                            onclick="ScenariosPage.regenerateScenarios()"
+                        >
+                            🔄 刷新
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 加载状态或场景列表 -->
@@ -150,6 +158,121 @@ const ScenariosPage = {
             Router.navigate('/practice');
         } catch (error) {
             this.showToast(error.message);
+        }
+    },
+
+    showCustomScenarioModal() {
+        document.getElementById('customScenarioModal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'customScenarioModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-t-2xl w-full max-w-lg p-6 pb-8 max-h-full overflow-y-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">新增自定义场景</h3>
+                    <button class="text-gray-400 text-2xl leading-none" onclick="ScenariosPage.closeCustomScenarioModal()">×</button>
+                </div>
+                <label class="block text-sm text-gray-600 mb-2">你想练习什么场景？</label>
+                <textarea id="customScenarioInput" rows="4" class="input-field mb-4" placeholder="例如：在海外酒店因房间噪音要求换房"></textarea>
+                <label class="block text-sm text-gray-600 mb-2">可见范围</label>
+                <div class="flex gap-3 mb-4">
+                    <label class="flex-1 border border-primary-400 rounded-lg px-3 py-2 text-sm text-primary-600 cursor-pointer">
+                        <input type="radio" name="scenarioVisibility" value="private" checked> 私有
+                    </label>
+                    <label class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600 cursor-pointer">
+                        <input type="radio" name="scenarioVisibility" value="shared"> 共享
+                    </label>
+                </div>
+                <div id="customScenarioDetails" class="hidden">
+                    <label class="block text-sm text-gray-600 mb-1">标题</label>
+                    <input id="customScenarioTitle" type="text" maxlength="200" class="input-field mb-3" />
+                    <label class="block text-sm text-gray-600 mb-1">简介</label>
+                    <input id="customScenarioDescription" type="text" maxlength="1000" class="input-field mb-3" />
+                    <label class="block text-sm text-gray-600 mb-1">场景背景</label>
+                    <textarea id="customScenarioContext" rows="4" maxlength="4000" class="input-field mb-4"></textarea>
+                </div>
+                <p id="customScenarioError" class="hidden text-sm text-red-500 mb-3"></p>
+                <div class="flex gap-3">
+                    <button id="enrichScenarioBtn" class="flex-1 btn-secondary" onclick="ScenariosPage.enrichCustomScenario()">丰富</button>
+                    <button id="saveScenarioBtn" class="flex-1 btn-primary" onclick="ScenariosPage.saveCustomScenario()">保存</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('customScenarioInput').focus();
+    },
+
+    closeCustomScenarioModal() {
+        document.getElementById('customScenarioModal')?.remove();
+    },
+
+    _customScenarioError(message = '') {
+        const node = document.getElementById('customScenarioError');
+        if (!node) return;
+        node.textContent = message;
+        node.classList.toggle('hidden', !message);
+    },
+
+    _setCustomScenarioBusy(busy, label = '') {
+        ['enrichScenarioBtn', 'saveScenarioBtn'].forEach(id => {
+            const button = document.getElementById(id);
+            if (button) button.disabled = busy;
+        });
+        const enrich = document.getElementById('enrichScenarioBtn');
+        if (enrich && label) enrich.textContent = label;
+    },
+
+    async enrichCustomScenario() {
+        const input = document.getElementById('customScenarioInput')?.value.trim();
+        if (!input) {
+            this._customScenarioError('请先输入想练习的场景。');
+            return;
+        }
+        this._customScenarioError();
+        this._setCustomScenarioBusy(true, '丰富中…');
+        try {
+            const draft = await API.enrichScenario(input);
+            document.getElementById('customScenarioTitle').value = draft.title || '';
+            document.getElementById('customScenarioDescription').value = draft.description || '';
+            document.getElementById('customScenarioContext').value = draft.context || input;
+            document.getElementById('customScenarioDetails').classList.remove('hidden');
+        } catch (error) {
+            this._customScenarioError(error.message || '场景丰富失败，请稍后重试。');
+        } finally {
+            this._setCustomScenarioBusy(false, '丰富');
+        }
+    },
+
+    async saveCustomScenario() {
+        const input = document.getElementById('customScenarioInput')?.value.trim();
+        if (!input) {
+            this._customScenarioError('请先输入想练习的场景。');
+            return;
+        }
+        const detailsVisible = !document.getElementById('customScenarioDetails').classList.contains('hidden');
+        const title = detailsVisible ? document.getElementById('customScenarioTitle').value.trim() : input.slice(0, 50);
+        const description = detailsVisible ? document.getElementById('customScenarioDescription').value.trim() : '';
+        const context = detailsVisible ? document.getElementById('customScenarioContext').value.trim() : input;
+        if (!title || !context) {
+            this._customScenarioError('标题和场景背景不能为空。');
+            return;
+        }
+        const visibility = document.querySelector('input[name="scenarioVisibility"]:checked').value;
+        this._customScenarioError();
+        this._setCustomScenarioBusy(true);
+        const saveButton = document.getElementById('saveScenarioBtn');
+        if (saveButton) saveButton.textContent = '保存中…';
+        try {
+            const scenario = await API.createCustomScenario({ title, description, context, raw_input: input, visibility });
+            this.scenarios.unshift(scenario);
+            this.closeCustomScenarioModal();
+            this.renderScenariosList();
+            this.showToast('场景已保存');
+        } catch (error) {
+            this._customScenarioError(error.message || '场景保存失败，请稍后重试。');
+        } finally {
+            this._setCustomScenarioBusy(false);
+            if (saveButton) saveButton.textContent = '保存';
         }
     },
 

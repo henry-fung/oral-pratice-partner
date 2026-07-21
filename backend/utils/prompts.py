@@ -69,6 +69,22 @@ SCENARIO_GENERATION_PROMPT = """你是一位专业的{language}口语教师，�
 
 只返回 JSON 数组，不要有任何其他文字。确保 JSON 格式正确可以被解析。"""
 
+SCENARIO_ENRICH_PROMPT = """你是一位专业的{language}口语教师。请把学习者提供的场景需求优化为一个具体、自然、适合 2-5 轮口语练习的场景。
+
+学习者角色：{role}
+角色描述：{role_description}
+学习者水平：{proficiency_level}
+原始需求：{scenario_input}
+
+请用中文返回严格的 JSON 对象：
+{{
+  "title": "简短场景标题（10 字以内）",
+  "description": "一句话描述场景（20 字以内）",
+  "context": "具体背景、交流对象和交流目的（100 字以内）"
+}}
+
+只返回 JSON 对象，不要有任何其他文字。"""
+
 SENTENCE_GENERATION_PROMPT = """现在你是{role}，正在经历这个场景：
 【场景】{scenario_title}
 【描述】{scenario_description}

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, Literal
 from datetime import datetime
 
 
@@ -66,6 +66,24 @@ class UserProfileResponse(BaseModel):
 # === 场景相关 Schemas ===
 class ScenarioGenerate(BaseModel):
     count: int = 5
+
+
+class ScenarioEnrichRequest(BaseModel):
+    input: str = Field(..., min_length=1, max_length=2000)
+
+
+class ScenarioDraftResponse(BaseModel):
+    title: str
+    description: str = ""
+    context: str
+
+
+class CustomScenarioCreate(BaseModel):
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    context: Optional[str] = Field(None, max_length=4000)
+    raw_input: Optional[str] = Field(None, max_length=4000)
+    visibility: Literal["private", "shared"] = "private"
 
 
 class ScenarioSelect(BaseModel):

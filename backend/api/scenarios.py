@@ -9,7 +9,10 @@ from backend.models.user import User
 from backend.models.profile import UserProfile
 from backend.models.shared_scenario import SharedScenario
 from backend.models.user_scenario import UserScenario
-from backend.schemas import ScenarioGenerate, ScenarioResponse, MessageResponse
+from backend.schemas import (
+    ScenarioGenerate, ScenarioResponse, MessageResponse, ScenarioEnrichRequest,
+    ScenarioDraftResponse, CustomScenarioCreate,
+)
 from backend.api.deps import get_current_user
 from backend.services.llm_service import LLMService
 
@@ -31,8 +34,88 @@ def _user_scenario_to_response(us: UserScenario) -> dict:
         "language": ss.language,
         "is_selected": us.is_selected,
         "is_practiced": us.is_practiced,
+        "visibility": ss.visibility,
         "created_at": us.created_at,
     }
+
+
+def _get_profile_or_400(db: Session, user_id: int) -> UserProfile:
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先设置个人配置（角色和 target_language）")
+    return profile
+
+
+@router.post("/enrich", response_model=ScenarioDraftResponse)
+async def enrich_scenario(
+    data: ScenarioEnrichRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Use the LLM to produce an editable draft without saving a scenario."""
+    profile = _get_profile_or_400(db, current_user.id)
+    try:
+        draft = await asyncio.to_thread(
+            LLMService().enrich_scenario,
+            scenario_input=data.input.strip(),
+            role=profile.role,
+            custom_role_name=profile.custom_role_name,
+            language=profile.target_language,
+            proficiency_level=profile.proficiency_level,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"场景丰富失败：{exc}")
+
+    title = str(draft.get("title", "")).strip()
+    context = str(draft.get("context", "")).strip()
+    if not title or not context:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="场景丰富失败：返回内容不完整")
+    return {"title": title[:200], "description": str(draft.get("description", "")).strip()[:1000], "context": context[:4000]}
+
+
+@router.post("/custom", response_model=ScenarioResponse)
+async def create_custom_scenario(
+    data: CustomScenarioCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a user-entered scenario, either private or reusable from the shared pool."""
+    profile = _get_profile_or_400(db, current_user.id)
+    raw_input = (data.raw_input or "").strip()
+    context = (data.context or raw_input).strip()
+    title = (data.title or raw_input[:50]).strip()
+    description = (data.description or "").strip()
+    if not title or not context:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="请填写场景内容")
+
+    scenario = SharedScenario(
+        role=profile.role,
+        language=profile.target_language,
+        proficiency_level=profile.proficiency_level,
+        title=title[:200],
+        description=description[:1000],
+        context=context[:4000],
+        visibility=data.visibility,
+        owner_user_id=current_user.id if data.visibility == "private" else None,
+        is_custom=True,
+    )
+    try:
+        db.add(scenario)
+        db.flush()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已存在同名场景，请修改标题后重试")
+
+    user_scenario = UserScenario(
+        user_id=current_user.id,
+        shared_scenario_id=scenario.id,
+        session_id=str(uuid.uuid4()),
+        is_selected=False,
+    )
+    db.add(user_scenario)
+    db.commit()
+    db.refresh(user_scenario)
+    return _user_scenario_to_response(user_scenario)
 
 
 @router.post("/generate", response_model=List[ScenarioResponse])
@@ -42,9 +125,7 @@ async def generate_scenarios(
     current_user: User = Depends(get_current_user)
 ):
     """生成 N 个口语场景（共享池复用 + 用户去重）"""
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    if not profile:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先设置个人配置（角色和 target_language）")
+    profile = _get_profile_or_400(db, current_user.id)
 
     # 查找用户最近 DEDUP_DAYS 天看过的场景 ID（必须在 DELETE 之前）
     cutoff = datetime.utcnow() - timedelta(days=DEDUP_DAYS)
@@ -55,9 +136,21 @@ async def generate_scenarios(
             UserScenario.created_at >= cutoff,
         ).all()
     }
+    existing_ids = {
+        row.shared_scenario_id
+        for row in db.query(UserScenario.shared_scenario_id).filter(
+            UserScenario.user_id == current_user.id,
+        ).all()
+    }
 
-    # 清除旧关联
-    db.query(UserScenario).filter(UserScenario.user_id == current_user.id).delete()
+    # 刷新仅替换 AI 生成的场景；用户创建的场景应持续保留在列表中。
+    generated_scenario_ids = db.query(SharedScenario.id).filter(
+        SharedScenario.is_custom == False
+    )
+    db.query(UserScenario).filter(
+        UserScenario.user_id == current_user.id,
+        UserScenario.shared_scenario_id.in_(generated_scenario_ids),
+    ).delete(synchronize_session=False)
     db.commit()
 
     # 从共享池随机取该用户未见过的场景
@@ -66,7 +159,9 @@ async def generate_scenarios(
         SharedScenario.role == profile.role,
         SharedScenario.language == profile.target_language,
         SharedScenario.proficiency_level == profile.proficiency_level,
+        SharedScenario.visibility == "shared",
         ~SharedScenario.id.in_(recent_ids) if recent_ids else True,
+        ~SharedScenario.id.in_(existing_ids) if existing_ids else True,
     ).order_by(sqlalchemy.func.random()).limit(generate_data.count).all()
 
     # 不够则调 LLM 补充
@@ -135,8 +230,13 @@ async def generate_scenarios(
         db.refresh(us)
 
     # 同一批场景的 created_at 可能相同；用 ID 作为次级排序，确保新建的场景稳定显示在最上方。
-    user_scenarios.sort(key=lambda us: (us.created_at, us.id), reverse=True)
-    return [_user_scenario_to_response(us) for us in user_scenarios]
+    custom_user_scenarios = db.query(UserScenario).join(SharedScenario).filter(
+        UserScenario.user_id == current_user.id,
+        SharedScenario.is_custom == True,
+    ).all()
+    all_user_scenarios = user_scenarios + custom_user_scenarios
+    all_user_scenarios.sort(key=lambda us: (us.created_at, us.id), reverse=True)
+    return [_user_scenario_to_response(us) for us in all_user_scenarios]
 
 
 @router.get("", response_model=List[ScenarioResponse])
@@ -223,6 +323,11 @@ async def delete_scenario(
     if not us:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
 
+    # A private scenario has no other legitimate user association; clean up its
+    # backing record (and any generated sentences) with the association.
+    shared = us.shared_scenario
     db.delete(us)
+    if shared.visibility == "private" and shared.owner_user_id == current_user.id:
+        db.delete(shared)
     db.commit()
     return MessageResponse(message="场景删除成功")

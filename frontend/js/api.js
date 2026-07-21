@@ -128,6 +128,14 @@ const API = {
         return this.post('/api/scenarios/generate', { count });
     },
 
+    async enrichScenario(input) {
+        return this.post('/api/scenarios/enrich', { input });
+    },
+
+    async createCustomScenario(scenario) {
+        return this.post('/api/scenarios/custom', scenario);
+    },
+
     async listScenarios() {
         return this.get('/api/scenarios');
     },

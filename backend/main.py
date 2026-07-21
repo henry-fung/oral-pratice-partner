@@ -38,6 +38,21 @@ with engine.connect() as _conn:
         _conn.commit()
     except Exception:
         pass
+    try:
+        _conn.execute(text("ALTER TABLE shared_scenarios ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'shared'"))
+        _conn.commit()
+    except Exception:
+        pass
+    try:
+        _conn.execute(text("ALTER TABLE shared_scenarios ADD COLUMN owner_user_id INTEGER REFERENCES users(id)"))
+        _conn.commit()
+    except Exception:
+        pass
+    try:
+        _conn.execute(text("ALTER TABLE shared_scenarios ADD COLUMN is_custom BOOLEAN NOT NULL DEFAULT 0"))
+        _conn.commit()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="口语练习助手 API",
