@@ -293,7 +293,6 @@ class CustomProvider(LLMProvider):
             "messages": messages,
             "timeout": 60,
             "temperature": 1,
-            "seed": 0,
             # "thinking":{"type": "disabled"} #kimi支持diable thinking的配置
         }
 

@@ -9,6 +9,7 @@ from backend.models.user import User
 from backend.models.profile import UserProfile
 from backend.models.shared_scenario import SharedScenario
 from backend.models.user_scenario import UserScenario
+from backend.models.user_scenario_history import UserScenarioHistory
 from backend.schemas import (
     ScenarioGenerate, ScenarioResponse, MessageResponse, ScenarioEnrichRequest,
     ScenarioDraftResponse, CustomScenarioCreate,
@@ -19,6 +20,29 @@ from backend.services.llm_service import LLMService
 router = APIRouter(prefix="/api/scenarios", tags=["场景"])
 
 DEDUP_DAYS = 7  # 用户 N 天内见过的场景不重复出现
+
+
+def _record_seen_scenarios(db: Session, user_id: int, scenario_ids: set[int]) -> None:
+    """Persist views before replacing current scenario links during a refresh."""
+    if not scenario_ids:
+        return
+
+    now = datetime.utcnow()
+    history_rows = db.query(UserScenarioHistory).filter(
+        UserScenarioHistory.user_id == user_id,
+        UserScenarioHistory.shared_scenario_id.in_(scenario_ids),
+    ).all()
+    history_by_scenario_id = {row.shared_scenario_id: row for row in history_rows}
+    for scenario_id in scenario_ids:
+        history = history_by_scenario_id.get(scenario_id)
+        if history:
+            history.last_seen_at = now
+        else:
+            db.add(UserScenarioHistory(
+                user_id=user_id,
+                shared_scenario_id=scenario_id,
+                last_seen_at=now,
+            ))
 
 
 def _user_scenario_to_response(us: UserScenario) -> dict:
@@ -127,19 +151,25 @@ async def generate_scenarios(
     """生成 N 个口语场景（共享池复用 + 用户去重）"""
     profile = _get_profile_or_400(db, current_user.id)
 
-    # 查找用户最近 DEDUP_DAYS 天看过的场景 ID（必须在 DELETE 之前）
+    # Persist the current generated cards before replacing their links.  Reading
+    # UserScenario alone is insufficient because refresh deletes those rows.
+    active_generated_ids = {
+        row.shared_scenario_id
+        for row in db.query(UserScenario.shared_scenario_id).join(SharedScenario).filter(
+            UserScenario.user_id == current_user.id,
+            SharedScenario.is_custom == False,
+        ).all()
+    }
+    _record_seen_scenarios(db, current_user.id, active_generated_ids)
+    db.flush()
+
+    # Query the durable viewing history instead of the soon-to-be-deleted links.
     cutoff = datetime.utcnow() - timedelta(days=DEDUP_DAYS)
     recent_ids = {
         row.shared_scenario_id
-        for row in db.query(UserScenario.shared_scenario_id).filter(
-            UserScenario.user_id == current_user.id,
-            UserScenario.created_at >= cutoff,
-        ).all()
-    }
-    existing_ids = {
-        row.shared_scenario_id
-        for row in db.query(UserScenario.shared_scenario_id).filter(
-            UserScenario.user_id == current_user.id,
+        for row in db.query(UserScenarioHistory.shared_scenario_id).filter(
+            UserScenarioHistory.user_id == current_user.id,
+            UserScenarioHistory.last_seen_at >= cutoff,
         ).all()
     }
 
@@ -161,7 +191,6 @@ async def generate_scenarios(
         SharedScenario.proficiency_level == profile.proficiency_level,
         SharedScenario.visibility == "shared",
         ~SharedScenario.id.in_(recent_ids) if recent_ids else True,
-        ~SharedScenario.id.in_(existing_ids) if existing_ids else True,
     ).order_by(sqlalchemy.func.random()).limit(generate_data.count).all()
 
     # 不够则调 LLM 补充
@@ -193,20 +222,17 @@ async def generate_scenarios(
                 context=sd.get("context", ""),
             )
             try:
-                db.add(ss)
-                db.flush()
+                # A savepoint prevents one duplicate title from rolling back
+                # other newly generated scenarios in this refresh.
+                with db.begin_nested():
+                    db.add(ss)
+                    db.flush()
                 shared.append(ss)
                 existing_titles.add(title)
             except IntegrityError:
-                db.rollback()
-                # 标题重复，从共享池捞已有的
-                existing = db.query(SharedScenario).filter_by(
-                    role=profile.role, language=profile.target_language,
-                    proficiency_level=profile.proficiency_level, title=title,
-                ).first()
-                if existing and existing.id not in {s.id for s in shared}:
-                    shared.append(existing)
-                    existing_titles.add(title)
+                # Do not fall back to an existing title here: it may belong to
+                # the user's recent history and would defeat refresh de-duplication.
+                continue
             if len(shared) >= generate_data.count:
                 break
         db.commit()
@@ -228,6 +254,13 @@ async def generate_scenarios(
     db.commit()
     for us in user_scenarios:
         db.refresh(us)
+
+    _record_seen_scenarios(
+        db,
+        current_user.id,
+        {us.shared_scenario_id for us in user_scenarios},
+    )
+    db.commit()
 
     # 同一批场景的 created_at 可能相同；用 ID 作为次级排序，确保新建的场景稳定显示在最上方。
     custom_user_scenarios = db.query(UserScenario).join(SharedScenario).filter(

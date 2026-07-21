@@ -7,6 +7,7 @@ from backend.models.learning_record import LearningRecord
 from backend.models.shared_scenario import SharedScenario
 from backend.models.shared_sentence import SharedSentence
 from backend.models.user_scenario import UserScenario
+from backend.models.user_scenario_history import UserScenarioHistory
 from backend.models.user_sentence_progress import UserSentenceProgress
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "SharedScenario",
     "SharedSentence",
     "UserScenario",
+    "UserScenarioHistory",
     "UserSentenceProgress",
 ]
