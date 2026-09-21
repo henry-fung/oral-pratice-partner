@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -14,6 +14,7 @@ class UserProfile(Base):
     target_language = Column(String(20), nullable=False)  # en, ja, fr, es 等
     native_language = Column(String(20), default="zh")  # 默认中文
     proficiency_level = Column(String(20), default="intermediate")  # beginner, intermediate, advanced
+    news_interests = Column(Text, nullable=False, default="[]")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

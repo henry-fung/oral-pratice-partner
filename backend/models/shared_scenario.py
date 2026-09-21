@@ -19,6 +19,7 @@ class SharedScenario(Base):
     visibility = Column(String(20), nullable=False, default="shared", index=True)
     owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     is_custom = Column(Boolean, nullable=False, default=False, index=True)
+    news_topic_id = Column(Integer, ForeignKey("news_topics.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -27,3 +28,4 @@ class SharedScenario(Base):
 
     sentences = relationship("SharedSentence", back_populates="scenario", cascade="all, delete-orphan")
     user_scenarios = relationship("UserScenario", back_populates="shared_scenario", cascade="all, delete-orphan")
+    news_topic = relationship("NewsTopic")

@@ -9,6 +9,9 @@ from backend.models.shared_sentence import SharedSentence
 from backend.models.user_scenario import UserScenario
 from backend.models.user_scenario_history import UserScenarioHistory
 from backend.models.user_sentence_progress import UserSentenceProgress
+from backend.models.news_topic import NewsTopic
+from backend.models.news_topic_match import NewsTopicMatch
+from backend.models.news_fetch_log import NewsFetchLog
 
 __all__ = [
     "User",
@@ -22,4 +25,7 @@ __all__ = [
     "UserScenario",
     "UserScenarioHistory",
     "UserSentenceProgress",
+    "NewsTopic",
+    "NewsTopicMatch",
+    "NewsFetchLog",
 ]

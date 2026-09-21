@@ -107,7 +107,8 @@ class LLMService:
         language: str,
         count: int = 5,
         proficiency_level: str = "intermediate",
-        custom_role_name: str = None
+        custom_role_name: str = None,
+        news_topics: Optional[List[Dict]] = None,
     ) -> List[Dict]:
         """生成 N 个与角色相关的口语场景"""
         # 如果是自定义角色，使用自定义名称
@@ -125,7 +126,8 @@ class LLMService:
             language=language,
             count=count,
             proficiency_level=proficiency_level,
-            random_seed=random_seed
+            random_seed=random_seed,
+            news_topics=json.dumps(news_topics or [], ensure_ascii=False),
         )
 
         # 使用 Pydantic 模型强制 JSON 格式
@@ -138,18 +140,35 @@ class LLMService:
         try:
             data = json.loads(response.strip())
             if isinstance(data, dict) and "scenarios" in data:
-                return [s.model_dump() if hasattr(s, 'model_dump') else s for s in data["scenarios"]]
+                result = [s.model_dump() if hasattr(s, 'model_dump') else s for s in data["scenarios"]]
+                return self._validate_scenario_batch(result, news_topics, prompt)
             # 如果直接返回数组
             if isinstance(data, list):
-                return data
+                return self._validate_scenario_batch(data, news_topics, prompt)
             # 如果返回单个对象
             if isinstance(data, dict) and "title" in data:
-                return [data]
+                return self._validate_scenario_batch([data], news_topics, prompt)
         except (json.JSONDecodeError, Exception):
             pass
 
         # 回退到旧方法
-        return self._parse_json_response(response)
+        return self._validate_scenario_batch(self._parse_json_response(response), news_topics, prompt)
+
+    def _validate_scenario_batch(self, result, news_topics, prompt):
+        if not news_topics or not isinstance(result, list):
+            return result
+        needs_repair = any(not self._is_grounded(item, topic.get("evidence", {})) for item, topic in zip(result, news_topics))
+        if not needs_repair:
+            return result
+        try:
+            repaired = self.provider.generate(
+                messages=[{"role": "user", "content": prompt + "\n修正：每个场景只能引用对应来源证据中明确支持的事实、数字、版本和术语。"}],
+                response_format=ScenarioList,
+            )
+            data = self._parse_json_response(repaired)
+            return data if isinstance(data, list) else result
+        except Exception:
+            return result
 
     def enrich_scenario(
         self,
@@ -191,7 +210,8 @@ class LLMService:
         role: str,
         language: str,
         native_language: str = "zh",
-        proficiency_level: str = "intermediate"
+        proficiency_level: str = "intermediate",
+        topic_evidence: Optional[Dict] = None,
     ) -> Dict:
         """生成场景下的一句话"""
         prompt = SENTENCE_GENERATION_PROMPT.format(
@@ -200,7 +220,8 @@ class LLMService:
             scenario_description=scenario.get("description", ""),
             scenario_context=scenario.get("context", ""),
             language=language,
-            proficiency_level=proficiency_level
+            proficiency_level=proficiency_level,
+            topic_evidence=json.dumps(topic_evidence or {}, ensure_ascii=False),
         )
 
         response = self.provider.generate(
@@ -208,7 +229,14 @@ class LLMService:
             response_format=SentenceData
         )
 
-        return self._parse_json_response(response)
+        result = self._parse_json_response(response)
+        if topic_evidence and not self._is_grounded(result, topic_evidence):
+            response = self.provider.generate(
+                messages=[{"role": "user", "content": prompt + "\n修正：删除所有未被来源证据支持的事实、数字和版本，只保留可核验内容。"}],
+                response_format=SentenceData,
+            )
+            result = self._parse_json_response(response)
+        return result
 
     def generate_continuation(
         self,
@@ -216,7 +244,8 @@ class LLMService:
         previous_target: str,
         role: str,
         language: str,
-        proficiency_level: str = "intermediate"
+        proficiency_level: str = "intermediate",
+        topic_evidence: Optional[Dict] = None,
     ) -> Dict:
         from backend.utils.prompts import CONTINUATION_PROMPT
         prompt = CONTINUATION_PROMPT.format(
@@ -227,12 +256,37 @@ class LLMService:
             previous_target=previous_target,
             language=language,
             proficiency_level=proficiency_level,
+            topic_evidence=json.dumps(topic_evidence or {}, ensure_ascii=False),
         )
         response = self.provider.generate(
             messages=[{"role": "user", "content": prompt}],
             response_format=SentenceData
         )
-        return self._parse_json_response(response)
+        result = self._parse_json_response(response)
+        if topic_evidence and not self._is_grounded(result, topic_evidence):
+            response = self.provider.generate(
+                messages=[{"role": "user", "content": prompt + "\n修正：删除所有未被来源证据支持的事实、数字和版本，只保留可核验内容。"}],
+                response_format=SentenceData,
+            )
+            result = self._parse_json_response(response)
+        return result
+
+    def _is_grounded(self, result: Dict, topic_evidence: Dict) -> bool:
+        """Ask the model to check factual claims against the persisted evidence pack."""
+        try:
+            check_prompt = (
+                "根据证据判断回答是否出现了证据未支持的事实、数字、版本、因果关系或技术断言。"
+                "只返回 JSON：{\"grounded\": true/false}。\n证据："
+                + json.dumps(topic_evidence, ensure_ascii=False)[:8000]
+                + "\n回答：" + json.dumps(result, ensure_ascii=False)
+            )
+            check = self.provider.generate(messages=[{"role": "user", "content": check_prompt}], json_mode=True)
+            data = self._parse_json_response(check)
+            if isinstance(data, list):
+                data = data[0] if data else {}
+            return bool(data.get("grounded")) if isinstance(data, dict) else True
+        except Exception:
+            return True
 
     def lookup_word(self, word: str, language: str) -> Dict:
         """查询单词详情"""

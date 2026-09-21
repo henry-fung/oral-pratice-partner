@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import datetime
 
 
@@ -39,6 +39,7 @@ class UserProfileCreate(BaseModel):
     target_language: str
     native_language: Optional[str] = "zh"
     proficiency_level: Optional[str] = "intermediate"
+    news_interests: List[str] = Field(default_factory=list, max_length=10)
 
 
 class UserProfileUpdate(BaseModel):
@@ -47,6 +48,7 @@ class UserProfileUpdate(BaseModel):
     target_language: Optional[str] = None
     native_language: Optional[str] = None
     proficiency_level: Optional[str] = None
+    news_interests: Optional[List[str]] = Field(None, max_length=10)
 
 
 class UserProfileResponse(BaseModel):
@@ -57,6 +59,7 @@ class UserProfileResponse(BaseModel):
     target_language: str
     native_language: str
     proficiency_level: str
+    news_interests: List[str] = Field(default_factory=list)
     created_at: datetime
 
     class Config:

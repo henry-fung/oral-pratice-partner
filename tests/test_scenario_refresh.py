@@ -11,6 +11,7 @@ from backend.models.profile import UserProfile
 from backend.models.shared_scenario import SharedScenario
 from backend.models.user import User
 from backend.schemas import ScenarioGenerate
+from unittest.mock import patch
 
 
 class ScenarioRefreshTests(unittest.TestCase):
@@ -48,7 +49,8 @@ class ScenarioRefreshTests(unittest.TestCase):
             third = await generate_scenarios(ScenarioGenerate(count=5), session, user)
             return ({item["title"] for item in first}, {item["title"] for item in second}, {item["title"] for item in third})
 
-        first_titles, second_titles, third_titles = asyncio.run(refresh_three_times())
+        with patch("backend.api.scenarios.NewsService.fetch_candidates", return_value=[]):
+            first_titles, second_titles, third_titles = asyncio.run(refresh_three_times())
 
         self.assertFalse(first_titles & second_titles)
         self.assertFalse(first_titles & third_titles)

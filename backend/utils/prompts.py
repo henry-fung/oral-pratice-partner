@@ -37,6 +37,9 @@ ROLE_DESCRIPTIONS = {
 }
 
 SCENARIO_GENERATION_PROMPT = """你是一位专业的{language}口语教师，专门为{role}设计口语练习场景。
+今日可用的新闻主题（JSON）：{news_topics}
+若提供新闻主题，请按其给出的顺序为每条新闻创作一个场景；场景应围绕该事件进行真实的任务、观点或沟通练习，不得编造新闻事实。
+技术或行业主题必须明确对话对象、决策目标、约束条件，并把证据中至少两个可核验事实或术语自然放进场景背景。
 
 角色描述：{role_description}
 
@@ -89,12 +92,14 @@ SENTENCE_GENERATION_PROMPT = """现在你是{role}，正在经历这个场景：
 【场景】{scenario_title}
 【描述】{scenario_description}
 【上下文】{scenario_context}
+【来源证据包】{topic_evidence}
 
 请用{language}说出你（作为{role}）在这种情况下最可能说的2-5句话。
 
 要求：
 1. 符合{proficiency_level}水平
 2. 实用、地道、常用
+3. 若证据包不为空，只能使用其中支持的技术事实、数字、版本和术语；技术讨论要保留具体约束和专业表达。
 
 返回严格的 JSON 格式：
 {{
@@ -108,6 +113,7 @@ CONTINUATION_PROMPT = """你正在扮演{role}，正在经历这个场景：
 【场景】{scenario_title}
 【描述】{scenario_description}
 【上下文】{scenario_context}
+【来源证据包】{topic_evidence}
 
 你刚才说了："{previous_target}"
 

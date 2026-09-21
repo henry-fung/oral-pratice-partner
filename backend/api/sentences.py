@@ -1,4 +1,5 @@
 import asyncio
+import json
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
@@ -17,6 +18,15 @@ from backend.services.llm_service import LLMService
 router = APIRouter(prefix="/api/sentences", tags=["句子"])
 
 MAX_SENTENCES_PER_SCENARIO = 5
+
+
+def _topic_evidence(scenario: SharedScenario) -> dict:
+    if not scenario.news_topic:
+        return {}
+    try:
+        return json.loads(scenario.news_topic.evidence_json or "{}")
+    except json.JSONDecodeError:
+        return {}
 
 
 def _sentence_to_response(ss: SharedSentence, progress: Optional[UserSentenceProgress]) -> dict:
@@ -83,6 +93,7 @@ def _prefetch_next_sentence(shared_scenario_id: int, profile_data: dict):
             language=profile_data["target_language"],
             native_language=profile_data["native_language"],
             proficiency_level=profile_data["proficiency_level"],
+            topic_evidence=_topic_evidence(ss),
         )
         db.add(SharedSentence(
             shared_scenario_id=shared_scenario_id,
@@ -154,6 +165,7 @@ async def generate_sentence(
             language=profile.target_language,
             native_language=profile.native_language,
             proficiency_level=profile.proficiency_level,
+            topic_evidence=_topic_evidence(shared_scenario),
         )
         sentence = SharedSentence(
             shared_scenario_id=shared_scenario_id,
@@ -218,6 +230,7 @@ async def continue_conversation(
             role=profile.role,
             language=profile.target_language,
             proficiency_level=profile.proficiency_level,
+            topic_evidence=_topic_evidence(shared_scenario),
         )
         continuation = SharedSentence(
             shared_scenario_id=us.shared_scenario_id,

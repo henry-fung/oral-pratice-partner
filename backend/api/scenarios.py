@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+import json
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -10,12 +11,16 @@ from backend.models.profile import UserProfile
 from backend.models.shared_scenario import SharedScenario
 from backend.models.user_scenario import UserScenario
 from backend.models.user_scenario_history import UserScenarioHistory
+from backend.models.news_topic import NewsTopic
+from backend.models.news_fetch_log import NewsFetchLog
+from backend.models.news_topic_match import NewsTopicMatch
 from backend.schemas import (
     ScenarioGenerate, ScenarioResponse, MessageResponse, ScenarioEnrichRequest,
     ScenarioDraftResponse, CustomScenarioCreate,
 )
 from backend.api.deps import get_current_user
 from backend.services.llm_service import LLMService
+from backend.services.news_service import NewsService, interest_key
 
 router = APIRouter(prefix="/api/scenarios", tags=["场景"])
 
@@ -43,6 +48,52 @@ def _record_seen_scenarios(db: Session, user_id: int, scenario_ids: set[int]) ->
                 shared_scenario_id=scenario_id,
                 last_seen_at=now,
             ))
+
+
+def _profile_interests(profile: UserProfile) -> list[str]:
+    try:
+        return [item for item in json.loads(profile.news_interests or "[]") if isinstance(item, str)]
+    except json.JSONDecodeError:
+        return []
+
+
+def _score_topic(topic: dict, role: str, interests: list[str]) -> int:
+    text = " ".join([topic.get("headline", ""), topic.get("summary", "")]).lower()
+    # Candidates were retrieved with role queries; direct community matches get extra priority.
+    score = 70 + (15 if topic.get("source_type") == "community" and role in {"ai_engineer", "business_dev"} else 0)
+    score += min(25, sum(12 for term in interests if term.lower() in text))
+    score += min(20, sum(6 for term in NewsService().role_terms(role, None, []) if term.lower() in text))
+    return min(score, 100)
+
+
+async def _get_daily_news_topics(db: Session, profile: UserProfile, limit: int = 20) -> list[NewsTopic]:
+    """Return a role/language/interest-specific daily evidence cache."""
+    today, interests = datetime.utcnow().date(), _profile_interests(profile)
+    key = interest_key(interests)
+    cached = db.query(NewsTopic).join(NewsTopicMatch).filter(
+        NewsTopicMatch.topic_date == today, NewsTopicMatch.role == profile.role,
+        NewsTopicMatch.language == profile.target_language, NewsTopicMatch.interest_key == key,
+    ).order_by(NewsTopicMatch.relevance_score.desc()).all()
+    if cached:
+        return cached[:limit]
+    try:
+        candidates = await asyncio.to_thread(NewsService().fetch_candidates, profile.role, profile.target_language, interests, profile.custom_role_name, limit)
+        for candidate in candidates:
+            evidence = await asyncio.to_thread(NewsService().extract_evidence, candidate)
+            topic = db.query(NewsTopic).filter(NewsTopic.topic_date == today, NewsTopic.source_url == candidate["source_url"]).first()
+            if not topic:
+                topic = NewsTopic(topic_date=today, **candidate, extracted_text=evidence["extracted_text"], extraction_status=evidence["extraction_status"], evidence_json=json.dumps(evidence["evidence"], ensure_ascii=False))
+                db.add(topic); db.flush()
+            match = NewsTopicMatch(news_topic_id=topic.id, topic_date=today, role=profile.role, language=profile.target_language, interest_key=key, relevance_score=_score_topic(candidate, profile.role, interests), diversity_group=candidate.get("content_category"))
+            db.add(match)
+        db.commit()
+    except Exception:
+        db.rollback()
+    return db.query(NewsTopic).join(NewsTopicMatch).filter(
+        NewsTopicMatch.topic_date == today, NewsTopicMatch.role == profile.role,
+        NewsTopicMatch.language == profile.target_language, NewsTopicMatch.interest_key == key,
+        NewsTopicMatch.relevance_score >= 70,
+    ).order_by(NewsTopicMatch.relevance_score.desc()).limit(limit).all()
 
 
 def _user_scenario_to_response(us: UserScenario) -> dict:
@@ -165,6 +216,19 @@ async def generate_scenarios(
 
     # Query the durable viewing history instead of the soon-to-be-deleted links.
     cutoff = datetime.utcnow() - timedelta(days=DEDUP_DAYS)
+    daily_topics = await _get_daily_news_topics(db, profile)
+    seen_news_topic_ids = {
+        topic_id
+        for (topic_id,) in db.query(SharedScenario.news_topic_id).join(
+            UserScenarioHistory,
+            UserScenarioHistory.shared_scenario_id == SharedScenario.id,
+        ).filter(
+            UserScenarioHistory.user_id == current_user.id,
+            UserScenarioHistory.last_seen_at >= cutoff,
+            SharedScenario.news_topic_id.isnot(None),
+        ).distinct().all()
+    }
+    available_topics = [topic for topic in daily_topics if topic.id not in seen_news_topic_ids]
     recent_ids = {
         row.shared_scenario_id
         for row in db.query(UserScenarioHistory.shared_scenario_id).filter(
@@ -190,25 +254,36 @@ async def generate_scenarios(
         SharedScenario.language == profile.target_language,
         SharedScenario.proficiency_level == profile.proficiency_level,
         SharedScenario.visibility == "shared",
+        SharedScenario.news_topic_id.in_([topic.id for topic in available_topics]) if available_topics else SharedScenario.news_topic_id.is_(None),
         ~SharedScenario.id.in_(recent_ids) if recent_ids else True,
     ).order_by(sqlalchemy.func.random()).limit(generate_data.count).all()
 
     # 不够则调 LLM 补充
     if len(shared) < generate_data.count:
+        used_topic_ids = {scenario.news_topic_id for scenario in shared}
+        topics_to_generate = [topic for topic in available_topics if topic.id not in used_topic_ids]
+        topics_to_generate = topics_to_generate[:generate_data.count - len(shared)]
         llm_service = LLMService()
         scenarios_data = await asyncio.to_thread(
             llm_service.generate_scenarios,
             role=profile.role,
             custom_role_name=profile.custom_role_name,
             language=profile.target_language,
-            count=generate_data.count,
+            count=len(topics_to_generate) or generate_data.count,
             proficiency_level=profile.proficiency_level,
+            news_topics=[{
+                "headline": topic.headline,
+                "summary": topic.summary or "",
+                "source": topic.source_name or "",
+                "evidence": json.loads(topic.evidence_json or "{}"),
+                "extracted_text": (topic.extracted_text or "")[:6000],
+            } for topic in topics_to_generate],
         )
         if not isinstance(scenarios_data, list):
             scenarios_data = [scenarios_data]
 
         existing_titles = {s.title for s in shared}
-        for sd in scenarios_data:
+        for index, sd in enumerate(scenarios_data):
             title = sd.get("title", "未命名场景")
             if title in existing_titles:
                 continue
@@ -220,6 +295,7 @@ async def generate_scenarios(
                 title=title,
                 description=sd.get("description", ""),
                 context=sd.get("context", ""),
+                news_topic_id=topics_to_generate[index].id if index < len(topics_to_generate) else None,
             )
             try:
                 # A savepoint prevents one duplicate title from rolling back

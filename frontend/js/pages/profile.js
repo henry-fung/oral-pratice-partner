@@ -5,6 +5,7 @@ const ProfilePage = {
     customRoleName: '',
     selectedLanguage: 'en',
     selectedLevel: 'intermediate',
+    newsInterests: [],
     _initialized: false,
     _existingProfile: null,
 
@@ -21,6 +22,7 @@ const ProfilePage = {
                 this.selectedRole = existingProfile.role;
                 this.selectedLanguage = existingProfile.target_language;
                 this.selectedLevel = existingProfile.proficiency_level;
+                this.newsInterests = existingProfile.news_interests || [];
                 if (existingProfile.role === 'custom' && existingProfile.custom_role_name) {
                     this.customRoleName = existingProfile.custom_role_name;
                 }
@@ -99,6 +101,13 @@ const ProfilePage = {
                             </div>
                         `).join('')}
                     </div>
+                </div>
+
+                <!-- 提交按钮 -->
+                <div class="mb-6">
+                    <h2 class="text-lg font-medium text-gray-800 mb-2">关注领域（可选）</h2>
+                    <p class="text-xs text-gray-500 mb-2">用逗号分隔，例如：RAG、推理优化、模型部署</p>
+                    <input id="newsInterests" class="input-field" maxlength="600" value="${this.escapeHtml(this.newsInterests.join('、'))}" placeholder="填写后会优先匹配相关新闻和社区讨论" />
                 </div>
 
                 <!-- 提交按钮 -->
@@ -265,7 +274,8 @@ const ProfilePage = {
             const profileData = {
                 role: this.selectedRole,
                 target_language: this.selectedLanguage,
-                proficiency_level: this.selectedLevel
+                proficiency_level: this.selectedLevel,
+                news_interests: (document.getElementById('newsInterests')?.value || '').split(/[、,，]/).map(item => item.trim()).filter(Boolean).slice(0, 10)
             };
 
             if (this.selectedRole === 'custom') {
@@ -299,6 +309,7 @@ const ProfilePage = {
         this.customRoleName = '';
         this.selectedLanguage = 'en';
         this.selectedLevel = 'intermediate';
+        this.newsInterests = [];
     },
 
     logout() {

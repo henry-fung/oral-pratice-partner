@@ -1,4 +1,7 @@
 import os
+import asyncio
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -53,12 +56,70 @@ with engine.connect() as _conn:
         _conn.commit()
     except Exception:
         pass
+    try:
+        _conn.execute(text("ALTER TABLE shared_scenarios ADD COLUMN news_topic_id INTEGER REFERENCES news_topics(id)"))
+        _conn.commit()
+    except Exception:
+        pass
+    for statement in (
+        "ALTER TABLE user_profiles ADD COLUMN news_interests TEXT NOT NULL DEFAULT '[]'",
+        "ALTER TABLE news_topics ADD COLUMN content_language VARCHAR(20)",
+        "ALTER TABLE news_topics ADD COLUMN source_type VARCHAR(30) NOT NULL DEFAULT 'news'",
+        "ALTER TABLE news_topics ADD COLUMN content_category VARCHAR(50)",
+        "ALTER TABLE news_topics ADD COLUMN extracted_text TEXT",
+        "ALTER TABLE news_topics ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '{}'",
+        "ALTER TABLE news_topics ADD COLUMN extraction_status VARCHAR(30) NOT NULL DEFAULT 'summary_only'",
+    ):
+        try:
+            _conn.execute(text(statement))
+            _conn.commit()
+        except Exception:
+            pass
 
 app = FastAPI(
     title="口语练习助手 API",
     description="一个基于 LLM 的口语练习助手应用",
     version="1.0.0"
 )
+
+_news_scheduler_task = None
+
+
+async def _daily_news_scheduler():
+    """Best-effort in-process scheduler; refresh requests remain the catch-up path."""
+    from backend.database import SessionLocal
+    from backend.models.profile import UserProfile
+    from backend.api.scenarios import _get_daily_news_topics
+    last_run = None
+    hour = int(os.getenv("NEWS_REFRESH_HOUR", "7"))
+    while True:
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        if now.hour >= hour and last_run != now.date():
+            db = SessionLocal()
+            try:
+                profiles = db.query(UserProfile).all()
+                seen = set()
+                for profile in profiles:
+                    key = (profile.role, profile.target_language, profile.news_interests or "")
+                    if key not in seen:
+                        seen.add(key)
+                        await _get_daily_news_topics(db, profile)
+                last_run = now.date()
+            finally:
+                db.close()
+        await asyncio.sleep(60)
+
+
+@app.on_event("startup")
+async def start_news_scheduler():
+    global _news_scheduler_task
+    _news_scheduler_task = asyncio.create_task(_daily_news_scheduler())
+
+
+@app.on_event("shutdown")
+async def stop_news_scheduler():
+    if _news_scheduler_task:
+        _news_scheduler_task.cancel()
 
 # CORS 配置
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
