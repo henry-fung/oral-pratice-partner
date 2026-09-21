@@ -13,6 +13,14 @@ class UserScenario(Base):
     session_id = Column(String(50), nullable=False, index=True)
     is_selected = Column(Boolean, default=False)
     is_practiced = Column(Boolean, default=False)
+    # The sentence the user most recently reached in this scenario.  This is
+    # deliberately stored per user-scenario rather than on SharedSentence,
+    # because the same scenario can be practiced independently by many users.
+    last_active_sentence_id = Column(
+        Integer,
+        ForeignKey("shared_sentences.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

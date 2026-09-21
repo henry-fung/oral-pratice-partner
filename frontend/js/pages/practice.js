@@ -79,7 +79,27 @@ const PracticePage = {
             document.getElementById('scenarioTitle').textContent = this.scenario.title;
             document.getElementById('scenarioContext').textContent = this.scenario.context || this.scenario.description;
 
-            // 检查是否有已生成的句子
+            // 优先恢复服务端记录的最后一轮。它不会依赖本地存储，因此
+            // 刷新页面或换设备后也能继续未完成的对话。
+            if (this.scenario.last_active_sentence_id) {
+                try {
+                    const lastSentence = await API.getSentence(this.scenario.last_active_sentence_id);
+                    if (!lastSentence.is_completed) {
+                        this.currentSentence = lastSentence;
+                        this.showAnswer = false;
+                        this.renderSentence();
+                        return;
+                    }
+
+                    // 用户已将最后一轮标记为学会，进入下一轮而不是重放它。
+                    await this.generateNewSentence();
+                    return;
+                } catch (error) {
+                    // 旧数据可能没有有效的恢复句子，继续使用原有选句逻辑。
+                }
+            }
+
+            // 没有恢复点时，检查是否有已生成的句子
             const sentences = await API.listScenarioSentences(state.scenarioId);
 
             if (sentences && sentences.length > 0) {
@@ -205,8 +225,16 @@ const PracticePage = {
                     </div>
                 </div>
 
-                <!-- 操作按钮 -->
-                <div class="grid grid-cols-2 gap-3 mb-3">
+                <!-- 主操作：继续当前对话 -->
+                <button
+                    class="btn-primary mb-3"
+                    onclick="PracticePage.continueConversation()"
+                >
+                    继续对话
+                </button>
+
+                <!-- 次级操作 -->
+                <div class="grid grid-cols-2 gap-3 mb-2">
                     <button
                         class="btn-secondary"
                         onclick="PracticePage.nextSentence()"
@@ -215,24 +243,17 @@ const PracticePage = {
                     </button>
                     <button
                         class="btn-secondary"
-                        onclick="PracticePage.continueConversation()"
+                        style="border-color: #22c55e; color: #4ade80;"
+                        onclick="PracticePage.completeSentence()"
                     >
-                        继续对话
+                        ✓ 我学会了
                     </button>
                 </div>
                 <button
-                    class="btn-secondary w-full mb-3"
-                    onclick="PracticePage.nextScenario()"
+                    class="w-full py-3 text-sm text-gray-500"
+                    onclick="PracticePage.returnToScenarioList()"
                 >
-                    下一场景
-                </button>
-
-                <!-- 标记完成按钮 -->
-                <button
-                    class="btn-primary mt-3 bg-green-500"
-                    onclick="PracticePage.completeSentence()"
-                >
-                    ✓ 我学会了
+                    返回场景列表
                 </button>
             `}
         `;
@@ -312,7 +333,7 @@ const PracticePage = {
         Router.navigate('/scenarios');
     },
 
-    async nextScenario() {
+    async returnToScenarioList() {
         Storage.clearPracticeState();
         if (this.scenario) {
             await API.markScenarioPracticed(this.scenario.id).catch(() => {});

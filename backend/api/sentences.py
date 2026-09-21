@@ -178,6 +178,11 @@ async def generate_sentence(
         db.commit()
         db.refresh(sentence)
 
+    # Persist the resume point even when this sentence was reused from the
+    # shared pool rather than newly generated.
+    us.last_active_sentence_id = sentence.id
+    db.commit()
+
     progress = _get_progress(db, current_user.id, sentence.id)
 
     # 预生成下一句（只统计根句）
@@ -205,7 +210,10 @@ async def continue_conversation(
 ):
     """继续对话：复用或生成当前句的 continuation"""
     us = _get_user_scenario(db, data.scenario_id, current_user.id)
-    sentence = db.query(SharedSentence).filter(SharedSentence.id == data.sentence_id).first()
+    sentence = db.query(SharedSentence).filter(
+        SharedSentence.id == data.sentence_id,
+        SharedSentence.shared_scenario_id == us.shared_scenario_id,
+    ).first()
     if not sentence:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="句子不存在")
 
@@ -244,6 +252,9 @@ async def continue_conversation(
         db.add(continuation)
         db.commit()
         db.refresh(continuation)
+
+    us.last_active_sentence_id = continuation.id
+    db.commit()
 
     progress = _get_progress(db, current_user.id, continuation.id)
     return _sentence_to_response(continuation, progress)

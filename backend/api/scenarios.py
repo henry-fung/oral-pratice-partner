@@ -109,6 +109,7 @@ def _user_scenario_to_response(us: UserScenario) -> dict:
         "language": ss.language,
         "is_selected": us.is_selected,
         "is_practiced": us.is_practiced,
+        "last_active_sentence_id": us.last_active_sentence_id,
         "visibility": ss.visibility,
         "created_at": us.created_at,
     }

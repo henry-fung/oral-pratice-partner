@@ -22,6 +22,11 @@ with engine.connect() as _conn:
     except Exception:
         pass
     try:
+        _conn.execute(text("ALTER TABLE user_scenarios ADD COLUMN last_active_sentence_id INTEGER REFERENCES shared_sentences(id)"))
+        _conn.commit()
+    except Exception:
+        pass
+    try:
         _conn.execute(text("ALTER TABLE vocabulary ADD COLUMN audio_url TEXT"))
         _conn.commit()
     except Exception:

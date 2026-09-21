@@ -104,6 +104,7 @@ class ScenarioResponse(BaseModel):
     language: str
     is_selected: bool
     is_practiced: bool = False
+    last_active_sentence_id: Optional[int] = None
     created_at: datetime
 
     class Config:
