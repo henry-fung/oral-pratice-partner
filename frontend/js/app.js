@@ -7,7 +7,7 @@ Router.register('/auth', () => {
 
 Router.register('/profile', () => {
     ProfilePage.reset();
-    ProfilePage.render();
+    return ProfilePage.render();
 });
 
 Router.register('/scenarios', () => {

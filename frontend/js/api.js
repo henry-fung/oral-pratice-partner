@@ -44,8 +44,9 @@ const API = {
             const data = await response.json();
 
             if (response.status === 401) {
-                Storage.clearToken();
-                Router.navigate('/auth');
+                // Keep the stored token and user state in sync when it has expired.
+                Storage.removeToken();
+                await Router.navigate('/auth');
                 throw new Error('登录已过期，请重新登录');
             }
             if (!response.ok) {

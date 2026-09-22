@@ -32,7 +32,12 @@ const ProfilePage = {
                     this.selectedRole = ROLE_MIGRATIONS[this.selectedRole];
                 }
             } catch (e) {
-                // 没有配置，使用默认值
+                // A missing profile uses the defaults.  For an expired login the
+                // API layer has already redirected to the authentication page;
+                // do not render this page over it.
+                if (Router.currentRoute !== '/profile') {
+                    return;
+                }
             }
         }
         const existingProfile = this._existingProfile;
@@ -317,6 +322,17 @@ const ProfilePage = {
             API.logout();
             Router.navigate('/auth');
         }
+    },
+
+    escapeHtml(value) {
+        const text = String(value ?? '');
+        return text.replace(/[&<>'"]/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        })[char]);
     },
 
     showToast(message) {
