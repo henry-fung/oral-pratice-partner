@@ -300,20 +300,30 @@ class CustomProvider(LLMProvider):
         # low effort. Generic OpenAI-compatible providers receive no Kimi-only
         # parameters.
         if self.thinking_effort:
-            base_kwargs["thinking"] = {"type": "enabled", "effort": self.thinking_effort}
+            # The OpenAI SDK validates named arguments and does not know Kimi's
+            # `thinking` field. `extra_body` merges provider-specific fields
+            # into the HTTP JSON payload without bypassing the SDK.
+            base_kwargs["extra_body"] = {
+                "thinking": {"type": "enabled", "effort": self.thinking_effort}
+            }
 
-        # 尝试使用 parse() 方法（Pydantic v2 结构化输出）
+        # Use the provider's documented OpenAI-compatible JSON Schema payload.
+        # `chat.completions.parse()` is an SDK convenience API and Kimi does not
+        # reliably support it; its old fallback silently discarded the schema.
         if response_format and hasattr(response_format, 'model_json_schema'):
-            try:
-                kwargs = {**base_kwargs, "response_format": response_format}
-                response = self.client.chat.completions.parse(**kwargs)
-                if response.choices[0].message.parsed:
-                    return response.choices[0].message.parsed.model_dump_json()
-                return response.choices[0].message.content
-            except (AttributeError, Exception):
-                # 如果 API 不支持 parse() 方法，回退到普通模式
-                # 不使用 json_object 模式，因为它强制返回 {} 而不是 []
-                pass
+            kwargs = {
+                **base_kwargs,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_format.__name__,
+                        "strict": True,
+                        "schema": response_format.model_json_schema(),
+                    },
+                },
+            }
+            response = self.client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content
 
         if json_mode:
             kwargs = {**base_kwargs, "response_format": {"type": "json_object"}}
