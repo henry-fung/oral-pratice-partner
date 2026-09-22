@@ -41,7 +41,16 @@ const API = {
 
         try {
             const response = await fetch(url, config);
-            const data = await response.json();
+            // Reverse proxies and unhandled server errors can return a plain-text
+            // or HTML body.  Parse JSON only when it is actually available so the
+            // user sees the server error instead of a secondary JSON parse error.
+            const responseText = await response.text();
+            let data = null;
+            try {
+                data = responseText ? JSON.parse(responseText) : null;
+            } catch (_) {
+                data = null;
+            }
 
             if (response.status === 401) {
                 // Keep the stored token and user state in sync when it has expired.
@@ -50,7 +59,8 @@ const API = {
                 throw new Error('登录已过期，请重新登录');
             }
             if (!response.ok) {
-                throw new Error(data.detail || `HTTP ${response.status}`);
+                const detail = data?.detail || responseText || `HTTP ${response.status}`;
+                throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
             }
 
             return data;
