@@ -281,9 +281,10 @@ class AzureOpenAIProvider(LLMProvider):
 
 
 class CustomProvider(LLMProvider):
-    def __init__(self, api_key: str, base_url: str, model: str):
+    def __init__(self, api_key: str, base_url: str, model: str, thinking_effort: Optional[str] = None):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
+        self.thinking_effort = thinking_effort if thinking_effort in {"low", "high", "max"} else None
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception_type(RateLimitError))
     def generate(self, messages: List[Dict[str, str]], json_mode: bool = False, response_format: Optional[type] = None) -> str:
@@ -293,8 +294,13 @@ class CustomProvider(LLMProvider):
             "messages": messages,
             "timeout": 60,
             "temperature": 1,
-            # "thinking":{"type": "disabled"} #kimi支持diable thinking的配置
         }
+        # Kimi K3 requires thinking mode and otherwise defaults to its slowest
+        # (max) effort. Keep routine generation responsive with configurable
+        # low effort. Generic OpenAI-compatible providers receive no Kimi-only
+        # parameters.
+        if self.thinking_effort:
+            base_kwargs["thinking"] = {"type": "enabled", "effort": self.thinking_effort}
 
         # 尝试使用 parse() 方法（Pydantic v2 结构化输出）
         if response_format and hasattr(response_format, 'model_json_schema'):
@@ -514,6 +520,7 @@ class LLMFactory:
                 api_key=os.getenv("KIMI_API_KEY"),
                 base_url=os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
                 model=os.getenv("KIMI_MODEL", "kimi-k3"),
+                thinking_effort=os.getenv("KIMI_THINKING_EFFORT", "low").lower(),
             )
         else:
             # Default to OpenAI

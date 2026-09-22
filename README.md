@@ -141,6 +141,7 @@ LLM_PROVIDER=custom
 KIMI_API_KEY=your-api-key
 KIMI_BASE_URL=https://api.moonshot.cn/v1
 KIMI_MODEL=kimi-k2.6
+KIMI_THINKING_EFFORT=low
 ```
 
 ### 数据库配置
