@@ -140,7 +140,7 @@ GEMINI_MODEL=gemini-1.5-flash
 LLM_PROVIDER=custom
 KIMI_API_KEY=your-api-key
 KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_MODEL=moonshot-v1-8k
+KIMI_MODEL=kimi-k2.6
 ```
 
 ### 数据库配置

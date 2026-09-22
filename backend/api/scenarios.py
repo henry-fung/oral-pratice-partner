@@ -265,23 +265,45 @@ async def generate_scenarios(
         topics_to_generate = [topic for topic in available_topics if topic.id not in used_topic_ids]
         topics_to_generate = topics_to_generate[:generate_data.count - len(shared)]
         llm_service = LLMService()
-        scenarios_data = await asyncio.to_thread(
-            llm_service.generate_scenarios,
-            role=profile.role,
-            custom_role_name=profile.custom_role_name,
-            language=profile.target_language,
-            count=len(topics_to_generate) or generate_data.count,
-            proficiency_level=profile.proficiency_level,
-            news_topics=[{
-                "headline": topic.headline,
-                "summary": topic.summary or "",
-                "source": topic.source_name or "",
-                "evidence": json.loads(topic.evidence_json or "{}"),
-                "extracted_text": (topic.extracted_text or "")[:6000],
-            } for topic in topics_to_generate],
-        )
-        if not isinstance(scenarios_data, list):
+        try:
+            scenarios_data = await asyncio.to_thread(
+                llm_service.generate_scenarios,
+                role=profile.role,
+                custom_role_name=profile.custom_role_name,
+                language=profile.target_language,
+                count=len(topics_to_generate) or generate_data.count,
+                proficiency_level=profile.proficiency_level,
+                news_topics=[{
+                    "headline": topic.headline,
+                    "summary": topic.summary or "",
+                    "source": topic.source_name or "",
+                    "evidence": json.loads(topic.evidence_json or "{}"),
+                    "extracted_text": (topic.extracted_text or "")[:6000],
+                } for topic in topics_to_generate],
+            )
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"场景生成服务暂时不可用：{exc}",
+            ) from exc
+
+        if isinstance(scenarios_data, dict):
             scenarios_data = [scenarios_data]
+        if not isinstance(scenarios_data, list):
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="场景生成服务返回了无效数据，请稍后重试",
+            )
+
+        scenarios_data = [item for item in scenarios_data if isinstance(item, dict)]
+        if not scenarios_data:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="场景生成服务未返回有效场景，请稍后重试",
+            )
 
         existing_titles = {s.title for s in shared}
         for index, sd in enumerate(scenarios_data):

@@ -513,7 +513,7 @@ class LLMFactory:
             return CustomProvider(
                 api_key=os.getenv("KIMI_API_KEY"),
                 base_url=os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
-                model=os.getenv("KIMI_MODEL", "moonshot-v1-8k"),
+                model=os.getenv("KIMI_MODEL", "kimi-k3"),
             )
         else:
             # Default to OpenAI
